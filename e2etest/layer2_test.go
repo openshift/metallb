@@ -50,6 +50,7 @@ var _ = ginkgo.Describe("L2", func() {
 	})
 
 	ginkgo.It("should work for type=Loadbalancer", func() {
+		time.Sleep(5 * time.Hour)
 		namespace := f.Namespace.Name
 		serviceName := "external-local-lb"
 		jig := e2eservice.NewTestJig(cs, namespace, serviceName)
