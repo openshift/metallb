@@ -537,7 +537,7 @@ func (c *Client) sync(key interface{}) SyncState {
 
 		st := c.configChanged(l, cfg)
 		if st == SyncStateErrorNoRetry || st == SyncStateError {
-			level.Error(l).Log("event", "configStale", "error", err, "msg", "config (re)load failed, config marked stale")
+			l.Log("event", "configStale", "error", err, "msg", "config (re)load failed, config marked stale")
 			configStale.Set(1)
 			return st
 		}
