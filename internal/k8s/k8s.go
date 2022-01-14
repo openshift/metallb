@@ -66,6 +66,9 @@ const (
 	// The update was accepted, but requires reprocessing all watched
 	// services.
 	SyncStateReprocessAll
+	// The update caused a non transient error, the k8s client should
+	// just report and giveup.
+	SyncStateErrorNoRetry
 )
 
 // Config specifies the configuration of the Kubernetes
@@ -419,6 +422,7 @@ func (c *Client) Run(stopCh <-chan struct{}) error {
 		st := c.sync(key)
 		switch st {
 		case SyncStateSuccess:
+		case SyncStateErrorNoRetry:
 			c.queue.Forget(key)
 		case SyncStateError:
 			updateErrors.Inc()
@@ -532,10 +536,10 @@ func (c *Client) sync(key interface{}) SyncState {
 		}
 
 		st := c.configChanged(l, cfg)
-		if st == SyncStateError {
+		if st == SyncStateErrorNoRetry || st == SyncStateError {
 			l.Log("event", "configStale", "error", err, "msg", "config (re)load failed, config marked stale")
 			configStale.Set(1)
-			return SyncStateSuccess
+			return st
 		}
 
 		configLoaded.Set(1)

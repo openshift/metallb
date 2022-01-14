@@ -332,7 +332,7 @@ func (c *controller) SetConfig(l gokitlog.Logger, cfg *config.Config) k8s.SyncSt
 
 	if cfg == nil {
 		l.Log("op", "setConfig", "error", "no MetalLB configuration in cluster", "msg", "configuration is missing, MetalLB will not function")
-		return k8s.SyncStateError
+		return k8s.SyncStateErrorNoRetry
 	}
 
 	for svc, ip := range c.svcIP {
@@ -345,7 +345,7 @@ func (c *controller) SetConfig(l gokitlog.Logger, cfg *config.Config) k8s.SyncSt
 	for proto, handler := range c.protocols {
 		if err := handler.SetConfig(l, cfg); err != nil {
 			l.Log("op", "setConfig", "protocol", proto, "error", err, "msg", "applying new configuration to protocol handler failed")
-			return k8s.SyncStateError
+			return k8s.SyncStateErrorNoRetry
 		}
 	}
 

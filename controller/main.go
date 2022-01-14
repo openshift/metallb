@@ -102,7 +102,7 @@ func (c *controller) SetConfig(l log.Logger, cfg *config.Config) k8s.SyncState {
 
 	if cfg == nil {
 		l.Log("op", "setConfig", "error", "no MetalLB configuration in cluster", "msg", "configuration is missing, MetalLB will not function")
-		return k8s.SyncStateError
+		return k8s.SyncStateErrorNoRetry
 	}
 
 	if err := c.ips.SetPools(cfg.Pools); err != nil {
