@@ -3,8 +3,8 @@
 metallb_dir="$(dirname $(readlink -f $0))"
 source ${metallb_dir}/common.sh
 
-METALLB_OPERATOR_REPO=${METALLB_OPERATOR_REPO:-"https://github.com/openshift/metallb-operator.git"}
-METALLB_OPERATOR_BRANCH=${METALLB_OPERATOR_BRANCH:-"main"}
+METALLB_OPERATOR_REPO="https://github.com/fedepaol/metallb-operator.git"
+METALLB_OPERATOR_BRANCH="ocp/tempcsv"
 METALLB_IMAGE_BASE=${METALLB_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable/g' | sed -e 's/@.*$//g')}
 METALLB_IMAGE_TAG=${METALLB_IMAGE_TAG:-"metallb"}
 METALLB_OPERATOR_IMAGE_TAG=${METALLB_OPERATOR_IMAGE_TAG:-"metallb-operator"}
