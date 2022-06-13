@@ -5,3 +5,5 @@ resources:
 
 patchesStrategicMerge:
 - controller_manager_patch.yaml
+- webhook_server_patch.yaml
+
