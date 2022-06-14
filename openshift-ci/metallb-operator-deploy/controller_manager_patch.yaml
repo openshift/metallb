@@ -17,3 +17,4 @@ spec:
               value: "frr"
             - name: FRR_IMAGE
               value: "quay.io/frrouting/frr:stable_7.5"
+          image: quay.io/fpaoline/metallboperator:5
