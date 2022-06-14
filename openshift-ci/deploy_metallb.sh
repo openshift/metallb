@@ -25,6 +25,8 @@ go install -mod='' github.com/mikefarah/yq/v4@v4.13.3
 yq e --inplace '.spec.template.spec.containers[0].env[] |= select (.name=="SPEAKER_IMAGE").value|="'${METALLB_IMAGE_BASE}':'${METALLB_IMAGE_TAG}'"' ${metallb_dir}/metallb-operator-deploy/controller_manager_patch.yaml
 yq e --inplace '.spec.template.spec.containers[0].env[] |= select (.name=="CONTROLLER_IMAGE").value|="'${METALLB_IMAGE_BASE}':'${METALLB_IMAGE_TAG}'"' ${metallb_dir}/metallb-operator-deploy/controller_manager_patch.yaml
 yq e --inplace '.spec.template.spec.containers[0].env[] |= select (.name=="FRR_IMAGE").value|="'${METALLB_IMAGE_BASE}':'${FRR_IMAGE_TAG}'"' ${metallb_dir}/metallb-operator-deploy/controller_manager_patch.yaml
+yq e --inplace '.spec.template.spec.containers[0].image |="'${METALLB_IMAGE_BASE}':'${METALLB_IMAGE_TAG}'"' ${metallb_dir}/metallb-operator-deploy/webhook_server_patch.yaml
+
 
 PATH="${GOPATH}:${PATH}" ENABLE_OPERATOR_WEBHOOK=true KUSTOMIZE_DEPLOY_DIR="../metallb-operator-deploy" IMG="${METALLB_IMAGE_BASE}:${METALLB_OPERATOR_IMAGE_TAG}" make deploy
 
