@@ -71,7 +71,12 @@ patch metallb/e2etest/pkg/config/update.go < "$metallb_root"/e2etest/backwardcom
 rm -rf e2etest # we want to make sure we are not running current e2e by mistake
 cd metallb
 FOCUS="\"L2.*should work for ExternalTrafficPolicy=Cluster\"\|\"BGP.*A service of protocol load balancer should work with.*IPV4 - ExternalTrafficPolicyCluster$\"\|\"BFD.*IPV4 - full params$\""
-inv e2etest --kubeconfig=$(readlink -f ../../../ocp/ostest/auth/kubeconfig) \
-	--service-pod-port=8080 --system-namespaces="metallb-system" --skip-docker \
-	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
-	 --focus="${FOCUS}" --prometheus-namespace="openshift-monitoring" --use-operator
+
+echo "kubeconfig"
+echo $(readlink -f ../../../ocp/ostest/auth/kubeconfig)
+
+#inv e2etest --kubeconfig=$(readlink -f ../../../ocp/ostest/auth/kubeconfig) \
+# --service-pod-port=8080 --system-namespaces="metallb-system" --skip-docker \
+# --ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
+#  --focus="${FOCUS}" --prometheus-namespace="openshift-monitoring" --use-operator
+sleep 2h
