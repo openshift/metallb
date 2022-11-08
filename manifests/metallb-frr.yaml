@@ -444,6 +444,10 @@ spec:
           emptyDir: {}
         - name: metrics
           emptyDir: {}
+        - name: memberlist
+          secret:
+            defaultMode: 420
+            secretName: memberlist
       initContainers:
         # Copies the initial config files with the right permissions to the shared volume.
         - name: cp-frr-files
@@ -559,16 +563,16 @@ spec:
             #  value: "7946"
             - name: METALLB_ML_LABELS
               value: "app=metallb,component=speaker"
-            - name: METALLB_ML_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: memberlist
-                  key: secretkey
+            - name: METALLB_ML_SECRET_KEY_PATH
+              value: "/etc/ml_secret_key"
           image: quay.io/metallb/speaker:main
           name: speaker
           volumeMounts:
             - name: reloader
               mountPath: /etc/frr_reloader
+            - name: memberlist 
+              mountPath: /etc/ml_secret_key
+              readOnly: true
           ports:
             - containerPort: 7472
               name: monitoring
