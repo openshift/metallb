@@ -16,18 +16,11 @@ deny[msg] {
   msg = sprintf("speaker ConfigMap arg '%s' does not match expected value", [configArg])
 }
 
-# validate METALLB_ML_SECRET_KEY (memberlist)
+# validate METALLB_ML_SECRET_KEY_PATH (memberlist)
 deny[msg] {
 	input.kind == "DaemonSet"
-	not input.spec.template.spec.containers[0].env[5].name == "METALLB_ML_SECRET_KEY"
-	msg = "speaker env does not contain METALLB_ML_SECRET_KEY at env[5]"
-}
-
-deny[msg] {
-	input.kind == "DaemonSet"
-	not input.spec.template.spec.containers[0].env[5].valueFrom.secretKeyRef.name == "RELEASE-NAME-metallb-memberlist"
-	not input.spec.template.spec.containers[0].env[5].valueFrom.secretKeyRef.key == "secretkey"
-	msg = "speaker env METALLB_ML_SECRET_KEY secretKeyRef does not equal expected value"
+	not input.spec.template.spec.containers[0].env[5].name == "METALLB_ML_SECRET_KEY_PATH"
+	msg = "speaker env does not contain METALLB_ML_SECRET_KEY_PATH at env[5]"
 }
 
 # validate node selector includes builtin when custom ones are provided
