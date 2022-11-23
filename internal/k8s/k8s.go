@@ -31,6 +31,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+const MLSecretKeyName = "secretkey"
+
 // Client watches a Kubernetes cluster and translates events into
 // Controller method calls.
 type Client struct {
@@ -382,7 +384,7 @@ func (c *Client) CreateMlSecret(namespace, controllerDeploymentName, secretName 
 					UID:  d.UID,
 				}},
 			},
-			Data: map[string][]byte{"secretkey": secretB64},
+			Data: map[string][]byte{MLSecretKeyName: secretB64},
 		},
 		metav1.CreateOptions{})
 	if err == nil {
