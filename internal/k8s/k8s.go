@@ -110,6 +110,7 @@ const slicesServiceIndexName = "ServiceName"
 //
 // The client uses processName to identify itself to the cluster
 // (e.g. when logging events).
+//
 //nolint:godot
 func New(cfg *Config) (*Client, error) {
 	var (
@@ -496,6 +497,12 @@ func (c *Client) sync(key interface{}) SyncState {
 			return c.serviceChanged(l, string(k), nil, EpsOrSlices{})
 		}
 
+		// Here metallb can only be the default lb. So, if the loadbalancerclass is set, we should not handle
+		// it.
+		if isNotDefaultLBClass(svc.(*v1.Service)) {
+			return SyncStateSuccess
+		}
+
 		epsOrSlices := EpsOrSlices{}
 		if c.epIndexer != nil {
 			epsIntf, exists, err := c.epIndexer.GetByKey(string(k))
@@ -635,4 +642,11 @@ func UseEndpointSlices(kubeClient kubernetes.Interface) bool {
 		return false
 	}
 	return true
+}
+
+func isNotDefaultLBClass(svc *v1.Service) bool {
+	if svc.Spec.LoadBalancerClass != nil && *svc.Spec.LoadBalancerClass != "" {
+		return true
+	}
+	return false
 }
