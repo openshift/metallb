@@ -92,8 +92,12 @@ var _ = ginkgo.Describe("IP Assignment", func() {
 				return len(s.Status.LoadBalancer.Ingress)
 			}, 5*time.Second, 1*time.Second).Should(gomega.BeZero())
 
-			err = modify(svc)
-			framework.ExpectNoError(err)
+			gomega.Eventually(func() error {
+				latestSvc, err := cs.CoreV1().Services(svc1.Namespace).Get(context.Background(), svc.Name, metav1.GetOptions{})
+				err = modify(latestSvc)
+				framework.ExpectNoError(err)
+				return nil
+			}, 5*time.Second, 1*time.Second).Should(gomega.Not(gomega.HaveOccurred()))
 
 			ginkgo.By("Changing the service type so the ip is free to be used again")
 			framework.ExpectNoError(err)
