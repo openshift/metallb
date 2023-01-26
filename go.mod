@@ -18,8 +18,8 @@ require (
 	github.com/mdlayher/raw v0.0.0-20191009151244-50f2db8cc065 // indirect
 	github.com/metallb/metallb-operator v0.0.0-20211223114020-a8fc2e0875fc
 	github.com/mikioh/ipaddr v0.0.0-20190404000644-d465c8ab6721
-	github.com/onsi/ginkgo v1.14.1
-	github.com/onsi/gomega v1.10.2
+	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/gomega v1.17.0
 	github.com/ory/dockertest/v3 v3.8.0
 	github.com/osrg/gobgp v2.0.0+incompatible
 	github.com/pkg/errors v0.9.1
@@ -29,14 +29,14 @@ require (
 	github.com/prometheus/exporter-toolkit v0.6.1
 	github.com/satori/go.uuid v1.2.0 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210831042530-f4d43177bf5e
+	golang.org/x/sys v0.0.0-20211029165221-6e7872819dc8
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.23.0
 	k8s.io/apimachinery v0.23.0
 	k8s.io/client-go v0.23.0
 	k8s.io/klog v0.3.1
 	k8s.io/kubernetes v1.21.1
-	sigs.k8s.io/controller-runtime v0.7.0
+	sigs.k8s.io/controller-runtime v0.11.0
 )
 
 // pinning to specific versions is required because we are consuming
