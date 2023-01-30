@@ -49,6 +49,9 @@ go install github.com/onsi/ginkgo/v2/ginkgo@v2.4.0
 export PATH=${PATH}:${HOME}/.local/bin
 export CONTAINER_RUNTIME=podman
 export RUN_FRR_CONTAINER_ON_HOST_NETWORK=true
+
+echo "about to sleep"
+sleep 2h
 inv e2etest --kubeconfig=$(readlink -f ../../ocp/ostest/auth/kubeconfig) \
 	--service-pod-port=8080 --system-namespaces="metallb-system" --skip-docker \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
