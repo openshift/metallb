@@ -353,7 +353,8 @@ func TestParse(t *testing.T) {
 								"30.0.0.0/8",
 							},
 							AllocateTo: &v1beta1.ServiceAllocation{Priority: 2,
-								NamespaceSelectors: []v1.LabelSelector{{MatchLabels: map[string]string{"team": "metallb"}}}},
+								NamespaceSelectors: []v1.LabelSelector{{MatchLabels: map[string]string{"team": "metallb",
+									"test": "unit"}}}},
 						},
 					},
 					{
@@ -378,7 +379,7 @@ func TestParse(t *testing.T) {
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Name:   "test-ns2",
-							Labels: map[string]string{"team": "metallb"},
+							Labels: map[string]string{"team": "metallb", "test": "unit", "package": "l2"},
 						},
 					},
 				},

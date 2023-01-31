@@ -200,13 +200,16 @@ var _ = ginkgo.Describe("IP Assignment", func() {
 					AllocateTo: &metallbv1beta1.ServiceAllocation{Priority: 20, Namespaces: []string{f.Namespace.Name}},
 				},
 			}
+			nsLabels := map[string]string{"e2e-framework": "assignment",
+				"kubernetes.io/metadata.name": f.Namespace.Name}
 			namespaceLabelPoolWithHigherPriority := metallbv1beta1.IPAddressPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "test-ns-label-pool-2"},
 				Spec: metallbv1beta1.IPAddressPoolSpec{
 					Addresses: []string{
 						"192.168.10.0/32",
 					},
-					AllocateTo: &metallbv1beta1.ServiceAllocation{Priority: 10, NamespaceSelectors: []metav1.LabelSelector{{MatchLabels: f.Namespace.Labels}}},
+					AllocateTo: &metallbv1beta1.ServiceAllocation{Priority: 10,
+						NamespaceSelectors: []metav1.LabelSelector{{MatchLabels: nsLabels}}},
 				},
 			}
 			namespacePoolNoPriority := metallbv1beta1.IPAddressPool{
