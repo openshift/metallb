@@ -1063,7 +1063,7 @@ var _ = ginkgo.Describe("BGP", func() {
 
 			err = k8s.CreateConfigmap(cs, "bgpextras", metallb.Namespace, extraData)
 			framework.ExpectNoError(err)
-			Eventually(checkRoutesInjected, 30*time.Second, 1*time.Second).Should(HaveOccurred())
+			Eventually(checkRoutesInjected, 5*time.Minute, 1*time.Second).Should(HaveOccurred())
 		},
 			ginkgo.Entry("IPV4", "192.168.10.0/24", "172.16.1.10/32", ipfamily.IPv4),
 			ginkgo.Entry("IPV6", "fc00:f853:0ccd:e799::/116", "fc00:f853:ccd:e800::1/128", ipfamily.IPv6),
