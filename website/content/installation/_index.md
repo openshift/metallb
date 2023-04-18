@@ -145,6 +145,20 @@ configInline:
      - 198.51.100.0/24
 ```
 
+## FRR daemons logging level
+
+The FRR daemons logging level are configured using the speaker `--log-level` argument following the below mapping:
+
+Speaker log level | FRR log level
+------------------|--------------
+all, debug        | debugging
+info              | informational
+warn              | warnings
+error             | error
+none              | emergencies
+
+To override this behavior, you can set the `FRR_LOGGING_LEVEL` speaker's environment to any [FRR supported value](https://docs.frrouting.org/en/latest/basic.html#clicmd-log-stdout-LEVEL).
+
 ## Upgrade
 
 When upgrading MetalLB, always check the [release notes](https://metallb.universe.tf/release-notes/)
