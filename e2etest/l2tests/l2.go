@@ -244,45 +244,43 @@ var _ = ginkgo.Describe("L2", func() {
 			framework.ExpectNoError(err)
 
 			ginkgo.By("getting the advertising node")
-			var nodeToSet string
+			var nodeToSet *corev1.Node
 
 			gomega.Eventually(func() error {
-				node, err := nodeForService(svc, allNodes.Items)
-				if err != nil {
-					return err
-				}
-				nodeToSet = node
-				return nil
-			}, 3*time.Minute, time.Second).ShouldNot(gomega.HaveOccurred())
+				nodeToSet, err = k8s.GetSvcNode(cs, svc.Namespace, svc.Name, allNodes)
+				return err
+			}, 1*time.Minute, 1*time.Second).Should(gomega.Not(gomega.HaveOccurred()))
 
-			err = k8s.SetNodeCondition(cs, nodeToSet, corev1.NodeNetworkUnavailable, corev1.ConditionTrue)
+			err = k8s.SetNodeCondition(cs, nodeToSet.Name, corev1.NodeNetworkUnavailable, corev1.ConditionTrue)
 			framework.ExpectNoError(err)
 			defer func() {
-				err = k8s.SetNodeCondition(cs, nodeToSet, corev1.NodeNetworkUnavailable, corev1.ConditionFalse)
+				err = k8s.SetNodeCondition(cs, nodeToSet.Name, corev1.NodeNetworkUnavailable, corev1.ConditionFalse)
 				framework.ExpectNoError(err)
 			}()
+			time.Sleep(time.Second)
 
 			ginkgo.By("validating the service is announced from a different node")
 			gomega.Eventually(func() string {
-				node, err := nodeForService(svc, allNodes.Items)
+				node, err := k8s.GetSvcNode(cs, svc.Namespace, svc.Name, allNodes)
 				if err != nil {
 					return err.Error()
 				}
-				return node
-			}, time.Minute, time.Second).ShouldNot(gomega.Equal(nodeToSet))
+				return node.Name
+			}, time.Minute, time.Second).ShouldNot(gomega.Equal(nodeToSet.Name))
 
 			ginkgo.By("setting the NetworkUnavailable condition back to false")
-			err = k8s.SetNodeCondition(cs, nodeToSet, corev1.NodeNetworkUnavailable, corev1.ConditionFalse)
+			err = k8s.SetNodeCondition(cs, nodeToSet.Name, corev1.NodeNetworkUnavailable, corev1.ConditionFalse)
 			framework.ExpectNoError(err)
+			time.Sleep(time.Second)
 
 			ginkgo.By("validating the service is announced back again from the previous node")
 			gomega.Eventually(func() string {
-				node, err := nodeForService(svc, allNodes.Items)
+				node, err := k8s.GetSvcNode(cs, svc.Namespace, svc.Name, allNodes)
 				if err != nil {
 					return err.Error()
 				}
-				return node
-			}, time.Minute, time.Second).Should(gomega.Equal(nodeToSet))
+				return node.Name
+			}, time.Minute, time.Second).Should(gomega.Equal(nodeToSet.Name))
 		})
 	})
 
