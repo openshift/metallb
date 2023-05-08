@@ -54,7 +54,7 @@ inv e2etest --kubeconfig=$(readlink -f ../../ocp/ostest/auth/kubeconfig) \
 	--service-pod-port=8080 --system-namespaces="metallb-system" --skip-docker \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
 	--prometheus-namespace="openshift-monitoring" \
-	--local-nics="_" --node-nics="_" --skip="${SKIP}"
+	--local-nics="_" --node-nics="_" --skip="${SKIP}" --external-frr-image=quay.io/openshift/origin-metallb-frr:4.13
 
 # This checks if conversion webhooks work and if metallb is compatible with the CRDs
 # in the operator. We clone the 4.10 version of metallb and run the E2E tests in
@@ -79,4 +79,4 @@ FOCUS="\"L2.*should work for ExternalTrafficPolicy=Cluster\"\|\"BGP.*A service o
 inv e2etest --kubeconfig=$(readlink -f ../../../ocp/ostest/auth/kubeconfig) \
 	--service-pod-port=8080 --system-namespaces="metallb-system" --skip-docker \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
-	--focus="${FOCUS}" --use-operator
+	--focus="${FOCUS}" --use-operator --external-frr-image=quay.io/openshift/origin-metallb-frr:4.10
