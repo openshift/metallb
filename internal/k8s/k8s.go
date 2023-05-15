@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	metallbv1alpha1 "go.universe.tf/metallb/api/v1alpha1"
 	metallbv1beta1 "go.universe.tf/metallb/api/v1beta1"
 	metallbv1beta2 "go.universe.tf/metallb/api/v1beta2"
 
@@ -67,6 +68,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(metallbv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(metallbv1beta1.AddToScheme(scheme))
 	utilruntime.Must(metallbv1beta2.AddToScheme(scheme))
 
@@ -117,6 +119,7 @@ type Config struct {
 //
 // The client uses processName to identify itself to the cluster
 // (e.g. when logging events).
+//
 //nolint:godot
 func New(cfg *Config) (*Client, error) {
 	namespaceSelector := cache.ObjectSelector{
