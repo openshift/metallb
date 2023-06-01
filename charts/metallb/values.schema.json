@@ -287,6 +287,9 @@
                 },
                 "mlBindPort": {
                   "type": "integer"
+                },
+                "mlSecretKeyPath": {
+                  "type": "string"
                 }
               }
             },
