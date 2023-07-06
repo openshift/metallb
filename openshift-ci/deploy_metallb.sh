@@ -3,8 +3,19 @@
 metallb_dir="$(dirname $(readlink -f $0))"
 source ${metallb_dir}/common.sh
 
+# Extract and format the oc version to branch
+extract_version() {
+  local output="$1"
+  local version_line=$(echo "$output" | grep "$2")
+  local version=$(echo "$version_line" | awk '{print $3}')
+  local major=$(echo "$version" | cut -d '.' -f 1)
+  local minor=$(echo "$version" | cut -d '.' -f 2)
+  local oc_branch="release-$major.$minor"
+  echo "$oc_branch"
+}
+OC_BRANCH=$(extract_version "$(oc version)" "Server Version:")
+git checkout ${OC_BRANCH}
 METALLB_OPERATOR_REPO=${METALLB_OPERATOR_REPO:-"https://github.com/openshift/metallb-operator.git"}
-METALLB_OPERATOR_BRANCH=${METALLB_OPERATOR_BRANCH:-"main"}
 METALLB_IMAGE_BASE=${METALLB_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable/g' | sed -e 's/@.*$//g')}
 METALLB_IMAGE_TAG=${METALLB_IMAGE_TAG:-"metallb"}
 METALLB_OPERATOR_IMAGE_TAG=${METALLB_OPERATOR_IMAGE_TAG:-"metallb-operator"}
@@ -14,7 +25,7 @@ export NAMESPACE=${NAMESPACE:-"metallb-system"}
 if [ ! -d ./metallb-operator ]; then
 	git clone ${METALLB_OPERATOR_REPO}
 	cd metallb-operator
-	git checkout ${METALLB_OPERATOR_BRANCH}
+	git checkout ${OC_BRANCH}
 	cd -
 fi
 
