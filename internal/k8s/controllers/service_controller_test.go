@@ -67,6 +67,7 @@ func TestServiceController(t *testing.T) {
 		shouldReprocessAll      bool
 		expectReconcileFails    bool
 		expectForceReloadCalled bool
+		initialLoadPerformed    bool
 	}{
 		{
 			desc:                    "call reconcileService, handler returns SyncStateSuccess",
@@ -76,6 +77,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      false,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reconcileService, handler returns SyncStateSuccess - with endpoints",
@@ -85,6 +87,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      false,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reconcileService, handler returns SyncStateSuccess - with endpointSlices",
@@ -94,6 +97,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      false,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reconcileService, handler returns SyncStateError",
@@ -103,6 +107,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      false,
 			expectReconcileFails:    true,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reconcileService, handler returns SyncStateErrorNoRetry",
@@ -112,6 +117,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      false,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reconcileService, handler returns SyncStateReprocessAll",
@@ -121,6 +127,17 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      false,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: true,
+			initialLoadPerformed:    true,
+		},
+		{
+			desc:                    "call reconcileService, initialLoadPerformed initiated to false",
+			handlerRes:              SyncStateReprocessAll,
+			needEndPoints:           NoNeed,
+			initObjects:             []client.Object{testService},
+			shouldReprocessAll:      false,
+			expectReconcileFails:    false,
+			expectForceReloadCalled: false,
+			initialLoadPerformed:    false,
 		},
 		{
 			desc:                    "call reprocessAll, handler returns SyncStateSuccess",
@@ -130,6 +147,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      true,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reprocessAll, handler returns SyncStateSuccess - with endpoints",
@@ -139,6 +157,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      true,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reprocessAll, handler returns SyncStateSuccess - with endpointSlices",
@@ -148,6 +167,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      true,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reprocessAll, handler returns SyncStateError",
@@ -157,6 +177,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      true,
 			expectReconcileFails:    true,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reprocessAll, handler returns SyncStateErrorNoRetry",
@@ -166,6 +187,7 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      true,
 			expectReconcileFails:    false,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
 		},
 		{
 			desc:                    "call reprocessAll, handler returns SyncStateReprocessAll",
@@ -175,6 +197,17 @@ func TestServiceController(t *testing.T) {
 			shouldReprocessAll:      true,
 			expectReconcileFails:    true,
 			expectForceReloadCalled: false,
+			initialLoadPerformed:    true,
+		},
+		{
+			desc:                    "call reprocessAll, initialLoadPerformed initiated to false",
+			handlerRes:              SyncStateSuccess,
+			needEndPoints:           NoNeed,
+			initObjects:             []client.Object{testService},
+			shouldReprocessAll:      true,
+			expectReconcileFails:    false,
+			expectForceReloadCalled: false,
+			initialLoadPerformed:    false,
 		},
 	}
 	for _, test := range tests {
@@ -204,15 +237,16 @@ func TestServiceController(t *testing.T) {
 		mockReload := make(chan event.GenericEvent, 1)
 
 		r := &ServiceReconciler{
-			Client:    fakeClient,
-			Logger:    log.NewNopLogger(),
-			Scheme:    scheme,
-			Namespace: testNamespace,
-			Handler:   mockHandler,
-			Endpoints: test.needEndPoints,
-			Reload:    mockReload,
+			Client:               fakeClient,
+			Logger:               log.NewNopLogger(),
+			Scheme:               scheme,
+			Namespace:            testNamespace,
+			Handler:              mockHandler,
+			Endpoints:            test.needEndPoints,
+			Reload:               mockReload,
+			initialLoadPerformed: false,
 		}
-
+		r.initialLoadPerformed = test.initialLoadPerformed
 		var req reconcile.Request
 		if test.shouldReprocessAll {
 			req = reconcile.Request{
@@ -250,6 +284,9 @@ func TestServiceController(t *testing.T) {
 		if test.expectForceReloadCalled != calledForceReload {
 			t.Errorf("test %s failed: call force reload expected: %v, got: %v",
 				test.desc, test.expectForceReloadCalled, calledForceReload)
+		}
+		if test.shouldReprocessAll && !r.initialLoadPerformed {
+			t.Errorf("test %s failed: reconciler's initialLoadPerformed flag didn't change to true", test.desc)
 		}
 	}
 }
