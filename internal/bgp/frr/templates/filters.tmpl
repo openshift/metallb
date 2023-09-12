@@ -1,5 +1,6 @@
 {{- define "localpreffilter" -}}
-{{frrIPFamily .advertisement.IPFamily}} prefix-list {{localPrefPrefixList .neighbor .advertisement.LocalPref}} permit {{.advertisement.Prefix}}
+{{$localPrefixListName :=localPrefPrefixList .neighbor .advertisement.LocalPref}}
+{{frrIPFamily .advertisement.IPFamily}} prefix-list {{$localPrefixListName}} seq {{counter $localPrefixListName}} permit {{.advertisement.Prefix}}
 route-map {{.neighbor.Addr}}-out permit {{counter .neighbor.Addr}}
   match {{frrIPFamily .advertisement.IPFamily}} address prefix-list {{localPrefPrefixList .neighbor .advertisement.LocalPref}}
   set local-preference {{.advertisement.LocalPref}}
@@ -7,7 +8,8 @@ route-map {{.neighbor.Addr}}-out permit {{counter .neighbor.Addr}}
 {{- end -}}
 
 {{- define "communityfilter" -}}
-{{frrIPFamily .advertisement.IPFamily}} prefix-list {{communityPrefixList .neighbor .community}} permit {{.advertisement.Prefix}}
+{{$communityPrefixlistName :=communityPrefixList .neighbor .community}}
+{{frrIPFamily .advertisement.IPFamily}} prefix-list {{$communityPrefixlistName}} seq {{counter $communityPrefixlistName}} permit {{.advertisement.Prefix}}
 route-map {{.neighbor.Addr}}-out permit {{counter .neighbor.Addr}}
   match {{frrIPFamily .advertisement.IPFamily}} address prefix-list {{communityPrefixList .neighbor .community}}
   set community {{.community}} additive
@@ -32,7 +34,8 @@ route-map {{.neighbor.Addr}}-in deny 20
 {{template "communityfilter" dict "advertisement" $a "neighbor" $.neighbor "community" $c}}
 {{- end }}
 {{/* this advertisement is allowed to the specific neighbor  */}}
-{{frrIPFamily $a.IPFamily}} prefix-list {{allowedPrefixList $.neighbor}} permit {{$a.Prefix}}
+{{$plistName:=allowedPrefixList $.neighbor}}
+{{frrIPFamily $a.IPFamily}} prefix-list {{$plistName}} seq {{counter $plistName}} permit {{$a.Prefix}}
 {{- end }}
 
 route-map {{$.neighbor.Addr}}-out permit {{counter $.neighbor.Addr}}
@@ -40,6 +43,8 @@ route-map {{$.neighbor.Addr}}-out permit {{counter $.neighbor.Addr}}
 route-map {{$.neighbor.Addr}}-out permit {{counter $.neighbor.Addr}}
   match ipv6 address prefix-list {{allowedPrefixList $.neighbor}}
 
-ip prefix-list {{allowedPrefixList $.neighbor }} deny any
-ipv6 prefix-list {{allowedPrefixList $.neighbor}} deny any
+{{$plistName:=allowedPrefixList $.neighbor}}
+
+ip prefix-list {{$plistName}} seq {{counter $plistName}} deny any
+ipv6 prefix-list {{$plistName}} seq {{counter $plistName}} deny any
 {{- end -}}
