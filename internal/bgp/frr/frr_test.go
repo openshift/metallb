@@ -655,18 +655,18 @@ func TestSingleSessionExtras(t *testing.T) {
 		t.Fatalf("Could not sync extra info")
 	}
 	session, err := sessionManager.NewSession(l,
-		bgp.SessionParameters{
-			PeerAddress:   "127.0.0.2:179",
-			SourceAddress: net.ParseIP("10.1.1.254"),
-			MyASN:         100,
-			RouterID:      net.ParseIP("10.1.1.254"),
-			PeerASN:       200,
-			HoldTime:      time.Second,
-			KeepAliveTime: time.Second,
-			Password:      "password",
-			CurrentNode:   "hostname",
-			EBGPMultiHop:  false,
-			SessionName:   "test-peer"})
+		"127.0.0.2:179",
+		net.ParseIP("10.1.1.254"),
+		100,
+		net.ParseIP("10.1.1.254"),
+		200,
+		time.Second,
+		time.Second,
+		"password",
+		"hostname",
+		"",
+		false,
+		"test-peer")
 
 	if err != nil {
 		t.Fatalf("Could not create session: %s", err)
