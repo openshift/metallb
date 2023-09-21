@@ -156,14 +156,6 @@ func checkBFDConfigPropagated(nodeConfig metallbv1beta1.BFDProfile, peerConfig b
 	return nil
 }
 
-func validateDesiredLB(svc *corev1.Service) {
-	desiredLbIPs := svc.Annotations["metallb.universe.tf/loadBalancerIPs"]
-	if desiredLbIPs == "" {
-		return
-	}
-	framework.ExpectEqual(desiredLbIPs, strings.Join(getIngressIPs(svc.Status.LoadBalancer.Ingress), ","))
-}
-
 func checkServiceOnlyOnNodes(cs clientset.Interface, svc *corev1.Service, expectedNodes []corev1.Node, ipFamily ipfamily.Family) {
 	if len(expectedNodes) == 0 {
 		return
@@ -268,14 +260,6 @@ OUTER:
 	}
 
 	return nonSelectedNodes
-}
-
-func getIngressIPs(ingresses []corev1.LoadBalancerIngress) []string {
-	var ips []string
-	for _, ingress := range ingresses {
-		ips = append(ips, ingress.IP)
-	}
-	return ips
 }
 
 func validateServiceNotAdvertised(svc *corev1.Service, frrContainers []*frrcontainer.FRR, advertised string, ipFamily ipfamily.Family) {
