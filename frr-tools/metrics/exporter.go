@@ -8,6 +8,7 @@ import (
 	stdlog "log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -15,7 +16,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/exporter-toolkit/web"
 
-	"go.universe.tf/metallb/frr-metrics/collector"
+	"go.universe.tf/metallb/frr-tools/metrics/collector"
+	"go.universe.tf/metallb/frr-tools/metrics/liveness"
+	"go.universe.tf/metallb/frr-tools/metrics/vtysh"
 	"go.universe.tf/metallb/internal/logging"
 	"go.universe.tf/metallb/internal/version"
 )
@@ -59,8 +62,14 @@ func main() {
 
 	level.Info(logger).Log("version", version.Version(), "commit", version.CommitHash(), "branch", version.Branch(), "goversion", version.GoString(), "msg", "FRR metrics exporter starting "+version.String())
 
-	http.Handle(*metricsPath, metricsHandler(logger))
-	srv := &http.Server{Addr: fmt.Sprintf(":%d", *metricsPort)}
+	mux := http.NewServeMux()
+	mux.Handle(*metricsPath, metricsHandler(logger))
+	mux.Handle("/livez", liveness.Handler(vtysh.Run, logger))
+	srv := &http.Server{
+		Addr:        fmt.Sprintf(":%d", *metricsPort),
+		ReadTimeout: 3 * time.Second,
+		Handler:     mux,
+	}
 	level.Info(logger).Log("msg", "Starting exporter", "metricsPath", metricsPath, "port", metricsPort)
 
 	if err := web.ListenAndServe(srv, *tlsConfigPath, logger); err != nil {
