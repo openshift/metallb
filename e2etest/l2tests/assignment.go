@@ -147,13 +147,11 @@ var _ = ginkgo.Describe("IP Assignment", func() {
 			defer service.Delete(cs, serviceB)
 			service.ValidateDesiredLB(serviceB)
 
-			jig = e2eservice.NewTestJig(cs, f.Namespace.Name, "service-c")
-			serviceC, err := jig.CreateLoadBalancerServiceWaitForClusterIPOnly(nil)
+			serviceC, err := service.CreateLoadBalancerService(cs, "service-c", f.Namespace.Name, nil)
 			framework.ExpectNoError(err)
 			defer service.Delete(cs, serviceC)
 
-			jig = e2eservice.NewTestJig(cs, f.Namespace.Name, "service-d")
-			serviceD, err := jig.CreateLoadBalancerServiceWaitForClusterIPOnly(nil)
+			serviceD, err := service.CreateLoadBalancerService(cs, "service-d", f.Namespace.Name, nil)
 			framework.ExpectNoError(err)
 			defer service.Delete(cs, serviceD)
 

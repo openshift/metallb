@@ -57,3 +57,37 @@ func tweakRCPort(rc *v1.ReplicationController, port int) {
 	rc.Spec.Template.Spec.Containers[0].Args = []string{"netexec", fmt.Sprintf("--http-port=%d", port), fmt.Sprintf("--udp-port=%d", port)}
 	rc.Spec.Template.Spec.Containers[0].ReadinessProbe.HTTPGet.Port = intstr.FromInt(port)
 }
+
+func CreateLoadBalancerService(cs clientset.Interface, name string, namespace string, tweak func(svc *v1.Service)) (*v1.Service, error) {
+	svc := newServiceTemplate(name, namespace)
+	svc.Spec.Type = v1.ServiceTypeLoadBalancer
+	if tweak != nil {
+		tweak(svc)
+	}
+
+	result, err := cs.CoreV1().Services(namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create service type LoadBalancer (%q): %w", svc.Name, err)
+	}
+
+	return result, nil
+}
+
+func newServiceTemplate(name string, namespace string) *v1.Service {
+	service := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: corev1.ProtocolTCP,
+					Port:     80,
+				},
+			},
+		},
+	}
+
+	return service
+}
