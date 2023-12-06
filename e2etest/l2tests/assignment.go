@@ -13,6 +13,7 @@ import (
 	metallbv1beta1 "go.universe.tf/metallb/api/v1beta1"
 	"go.universe.tf/metallb/e2etest/pkg/config"
 	"go.universe.tf/metallb/e2etest/pkg/k8s"
+	"go.universe.tf/metallb/e2etest/pkg/metallb"
 	"go.universe.tf/metallb/e2etest/pkg/service"
 	internalconfig "go.universe.tf/metallb/internal/config"
 
@@ -115,5 +116,71 @@ var _ = ginkgo.Describe("IP Assignment", func() {
 					err := cs.CoreV1().Services(svc.Namespace).Delete(context.Background(), svc.Name, metav1.DeleteOptions{})
 					return err
 				}))
+
+		ginkgo.It("should preseve the same external ip after controller restart", func() {
+			const numOfRestarts = 5
+			resources := internalconfig.ClusterResources{
+				Pools: []metallbv1beta1.IPAddressPool{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "assignment-controller-reset-test-pool",
+						},
+						Spec: metallbv1beta1.IPAddressPoolSpec{
+							Addresses: []string{"192.168.10.100/32", "192.168.20.200/32"},
+						},
+					},
+				},
+			}
+			err := ConfigUpdater.Update(resources)
+			framework.ExpectNoError(err)
+
+			ginkgo.By("creating 4 LB services")
+			jig := e2eservice.NewTestJig(cs, f.Namespace.Name, "service-a")
+			serviceA, err := jig.CreateLoadBalancerService(30*time.Second, nil)
+			framework.ExpectNoError(err)
+			defer service.Delete(cs, serviceA)
+			service.ValidateDesiredLB(serviceA)
+
+			jig = e2eservice.NewTestJig(cs, f.Namespace.Name, "service-b")
+			serviceB, err := jig.CreateLoadBalancerService(30*time.Second, nil)
+			framework.ExpectNoError(err)
+			defer service.Delete(cs, serviceB)
+			service.ValidateDesiredLB(serviceB)
+
+			serviceC, err := service.CreateLoadBalancerService(cs, "service-c", f.Namespace.Name, nil)
+			framework.ExpectNoError(err)
+			defer service.Delete(cs, serviceC)
+
+			serviceD, err := service.CreateLoadBalancerService(cs, "service-d", f.Namespace.Name, nil)
+			framework.ExpectNoError(err)
+			defer service.Delete(cs, serviceD)
+
+			restartAndAssert := func() {
+				metallb.RestartController(cs)
+				gomega.Consistently(func() error {
+					serviceA, err = cs.CoreV1().Services(serviceA.Namespace).Get(context.TODO(), serviceA.Name, metav1.GetOptions{})
+					framework.ExpectNoError(err)
+
+					err = service.ValidateAssignedWith(serviceA, "192.168.10.100")
+					if err != nil {
+						return err
+					}
+					serviceB, err = cs.CoreV1().Services(serviceB.Namespace).Get(context.TODO(), serviceB.Name, metav1.GetOptions{})
+					framework.ExpectNoError(err)
+
+					err = service.ValidateAssignedWith(serviceB, "192.168.20.200")
+					if err != nil {
+						return err
+					}
+
+					return nil
+				}, 10*time.Second, 2*time.Second).ShouldNot(gomega.HaveOccurred())
+			}
+
+			ginkgo.By("restarting the controller and validating that the service keeps the same ip")
+			for i := 0; i < numOfRestarts; i++ {
+				restartAndAssert()
+			}
+		})
 	})
 })
