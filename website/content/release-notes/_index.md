@@ -2,6 +2,78 @@
 title: Release Notes
 weight: 8
 ---
+
+## Next release
+
+Chores:
+
+- Enforce adding a release notes entry on each PR ([PR 2191](https://github.com/metallb/metallb/pull/2191))
+- Dev-env: don't run tests against VRFs by default ([PR 2201](https://github.com/metallb/metallb/pull/2201), [ISSUE 2197](https://github.com/metallb/metallb/issues/2197))
+- Dev-env: improve docker build times ([PR 2205](https://github.com/metallb/metallb/pull/2205))
+- Add more frr-k8s related logs under debug loglevel ([PR 2199](https://github.com/metallb/metallb/pull/2199))
+- Move webhooks out of API package ([PR 2193](https://github.com/metallb/metallb/pull/2193))
+- Support running the e2es on frr-k8s deployments ([PR 2180](https://github.com/metallb/metallb/pull/2180))
+- E2E: Receive prefixes using frr-k8s alongside MetalLB ([PR 2211](https://github.com/metallb/metallb/pull/2211))
+- Images updated to Go 1.20.12 ([PR 2213](https://github.com/metallb/metallb/pull/2213))
+- CI/E2E: Relabel the frr metrics from frr-k8s to show as MetalLB's ([PR 2210](https://github.com/metallb/metallb/pull/2210))
+- Dev-env: change the default BGP mode to FRR ([PR 2196](https://github.com/metallb/metallb/pull/2196))
+- Webhooks: avoid transient errors ([PR 2202](https://github.com/metallb/metallb/pull/2202)), [ISSUE 2173](https://github.com/metallb/metallb/issues/2173))
+- Dev-env: Override GOBIN for inv dev-env ([PR 2219](https://github.com/metallb/metallb/pull/2219))
+- Metrics: add ipv4/6 addresses_in_use_total and addresses_total ([PR 2151](https://github.com/metallb/metallb/pull/2151))
+
+## Version 0.13.12
+
+- Change the version of go used to compile the binaries
+- Disable http2 on the webhook listener
+- Bump the kubernetes dependencies
+
+This release includes contributions from Federico Paolinelli, Ori Braunshtein, Micah Nagel
+
+## Version 0.13.11
+
+New features:
+
+- Add namespaces to resources generated using helm templates ([PR 1965](https://github.com/metallb/metallb/pull/1965), [Issue 1964](https://github.com/metallb/metallb/issues/1964))
+- Improve FRR liveness probes configurability in helm charts ([PR 2034](https://github.com/metallb/metallb/pull/2034), [Issue 1963](https://github.com/metallb/metallb/issues/1964)) to make MetalLB's FRR more tolerant to low resources deployments
+- Bump FRR to version to 8.5.2 [PR 2051](https://github.com/metallb/metallb/pull/2051)
+
+Bug Fixes:
+
+- Reprocess all the services only when a pool of IPs changes, and not every time the controller receives it ([PR 1951](https://github.com/metallb/metallb/pull/1951)
+)
+- Delete BFD profiles from the configuration when deleted from CRs ([PR 1973](https://github.com/metallb/metallb/pull/1973))
+- Fix kustomize v5 deprecations ([PR 1986](https://github.com/metallb/metallb/pull/1986), [Issue 1985](https://github.com/metallb/metallb/issues/1985))
+- Make the configuration conversion stable and avoid unnecessary FRR reloads ([PR 1990](https://github.com/metallb/metallb/pull/1990))
+- Change the "interface to exclude" log to debug to avoid spamming logs ([PR 1992](https://github.com/metallb/metallb/pull/1992))
+- Improve the regex excluding well known interfaces from L2 announcement ([PR 2058](https://github.com/metallb/metallb/pull/2058)), [Issue 2057](https://github.com/metallb/metallb/issues/2057)
+
+This release includes contributions from Andreas Lindhé, ankitm123, cyclinder, Federico Paolinelli, Joshua Cooper, Lior Noy, Marcelo Guerrero Viveros, Patryk Małek, Peter Grace, Rodrigo Campos, Sebastian-RG, Simon, Simon Smith.
+
+Thank you!
+
+## Version 0.13.10
+
+New Features:
+
+- Bumped the FRR version used by MetalLB to 8.4.2 ([PR 1829](https://github.com/metallb/metallb/pull/1829))
+- Charts: enable additional controller / speaker labels ([PR 1797](https://github.com/metallb/metallb/pull/1797))
+- l2: exclude common virtual interfaces for announce services ([PR 1767](https://github.com/metallb/metallb/pull/1767))
+- FRR Mode: provide a way to append a piece of configuration ([PR 1863](https://github.com/metallb/metallb/pull/1863))
+- Local Preference validation across multiple advertisements ([PR 1820](https://github.com/metallb/metallb/pull/1820))
+- Charts: support rbacproxy custom pull policy ([PR 1851](https://github.com/metallb/metallb/pull/1851))
+- Add support for large communities ([PR 1898](https://github.com/metallb/metallb/pull/1898))
+- Optimization: on service delete reprocess the services only if the service had an IP assigned ([PR 1945](https://github.com/metallb/metallb/pull/1945))
+- Make the FRR mode the default one when deploying via charts ([PR 1931](https://github.com/metallb/metallb/pull/1931))
+
+Bug Fixes:
+
+- Charts: remove duplicate relabings and metricRelabelings for speaker ([PR 18030](https://github.com/metallb/metallb/pull/1830))
+- Respect NodeNetworkUnavailable ([PR 1759](https://github.com/metallb/metallb/pull/1759))
+- Verify LB ip and address pool annotations compatibility ([PR 1920](https://github.com/metallb/metallb/pull/1920))
+
+This release includes contributions from Andreas Karis, Chok Yip Lau, Chris Privitere, conblem, cyclinder, dependabot[bot], DerFels, Federico Paolinelli, Fish-pro, Guillaume SMAHA, liornoy, Marcelo Guerrero Viveros, Mathew Peterson, Periyasamy Palanisamy, Tobias Klauser, xin.li, yulng. Thank you!
+
+>>>>>>> 2bed9461a (Metrics: add ipv4/6 addresses_in_use_total and addresses_total)
 ## Version 0.13.9
 
 New Features:
