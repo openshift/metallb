@@ -29,6 +29,10 @@ metadata:
   name: metallb-operator-subscription
   namespace: metallb-system
 spec:
+  config:
+    env:
+    - name: METALLB_BGP_TYPE
+      value: frr-k8s
   channel: "alpha"
   name: metallb-operator
   source: metallbindex
