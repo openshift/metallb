@@ -9,13 +9,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-kit/log"
 	"go.universe.tf/metallb/internal/bgp"
 	"go.universe.tf/metallb/internal/config"
+	"go.universe.tf/metallb/internal/ipfamily"
 	"go.universe.tf/metallb/internal/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -537,6 +540,38 @@ func TestTwoAdvertisements(t *testing.T) {
 	testCheckConfigFile(t)
 }
 
+func TestTwoAdvertisementsDuplicate(t *testing.T) {
+	testSetup(t)
+
+	l := log.NewNopLogger()
+	sessionManager := NewSessionManager(l, logging.LevelInfo)
+	defer close(sessionManager.reloadConfig)
+	session, err := sessionManager.NewSession(l, "10.2.2.254:179", net.ParseIP("10.1.1.254"), 100, net.ParseIP("10.1.1.254"), 200, time.Second, time.Second, "password", "hostname", "", true, "test-peer")
+	if err != nil {
+		t.Fatalf("Could not create session: %s", err)
+	}
+	defer session.Close()
+
+	prefix1 := &net.IPNet{
+		IP:   net.ParseIP("172.16.1.10"),
+		Mask: classCMask,
+	}
+	adv1 := &bgp.Advertisement{
+		Prefix: prefix1,
+	}
+
+	adv2 := &bgp.Advertisement{
+		Prefix: prefix1,
+	}
+
+	err = session.Set(adv1, adv2)
+	if err != nil {
+		t.Fatalf("Could not advertise prefix: %s", err)
+	}
+
+	testCheckConfigFile(t)
+}
+
 func TestTwoAdvertisementsTwoSessions(t *testing.T) {
 	testSetup(t)
 
@@ -726,4 +761,175 @@ func TestLoggingConfigurationOverrideByEnvironmentVar(t *testing.T) {
 
 	sessionManager.reloadConfig <- reloadEvent{config: config}
 	testCheckConfigFile(t)
+}
+
+func TestAddToAdvertisements(t *testing.T) {
+	tests := []struct {
+		name      string
+		current   []*advertisementConfig
+		toAdd     *advertisementConfig
+		expected  []*advertisementConfig
+		shouldErr bool
+	}{
+		{
+			name:    "starting empty",
+			current: []*advertisementConfig{},
+			toAdd: &advertisementConfig{
+				Prefix:   "192.168.1.1/32",
+				IPFamily: ipfamily.IPv4,
+			},
+			expected: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+		},
+		{
+			name: "mismatch localpref",
+			current: []*advertisementConfig{{
+				Prefix:    "192.168.1.1/32",
+				IPFamily:  ipfamily.IPv4,
+				LocalPref: uint32(12),
+			}},
+			toAdd: &advertisementConfig{
+				Prefix:    "192.168.1.1/32",
+				IPFamily:  ipfamily.IPv4,
+				LocalPref: uint32(13),
+			},
+			shouldErr: true,
+		},
+		{
+			name: "adding to back",
+			current: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+			toAdd: &advertisementConfig{
+				Prefix:   "192.168.1.2/32",
+				IPFamily: ipfamily.IPv4,
+			},
+			expected: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.2/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+		},
+		{
+			name: "adding to head",
+			current: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.2/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+			toAdd: &advertisementConfig{
+				Prefix:   "192.168.1.1/32",
+				IPFamily: ipfamily.IPv4,
+			},
+			expected: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.2/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+		},
+		{
+			name: "adding in the middle",
+			current: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.3/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+			toAdd: &advertisementConfig{
+				Prefix:   "192.168.1.2/32",
+				IPFamily: ipfamily.IPv4,
+			},
+			expected: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.2/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.3/32",
+					IPFamily: ipfamily.IPv4,
+				},
+			},
+		},
+		{
+			name: "should add communities",
+			current: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.3/32",
+					IPFamily: ipfamily.IPv4,
+					Communities: []string{
+						"1111:2222",
+						"3333:4444",
+					},
+				},
+			},
+			toAdd: &advertisementConfig{
+				Prefix:   "192.168.1.3/32",
+				IPFamily: ipfamily.IPv4,
+				Communities: []string{
+					"1111:2222",
+					"5555:6666",
+				},
+			},
+			expected: []*advertisementConfig{
+				{
+					Prefix:   "192.168.1.1/32",
+					IPFamily: ipfamily.IPv4,
+				},
+				{
+					Prefix:   "192.168.1.3/32",
+					IPFamily: ipfamily.IPv4,
+					Communities: []string{
+						"1111:2222",
+						"3333:4444",
+						"5555:6666",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := addToAdvertisements(tt.current, tt.toAdd)
+			if err != nil && !tt.shouldErr {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if err == nil && tt.shouldErr {
+				t.Fatalf("expecting error")
+			}
+			if !reflect.DeepEqual(res, tt.expected) {
+				t.Fatalf("expecting %s got %s", spew.Sdump(tt.expected), spew.Sdump(res))
+			}
+		})
+	}
 }
