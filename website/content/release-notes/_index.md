@@ -3,6 +3,19 @@ title: Release Notes
 weight: 8
 ---
 
+## Version 0.14.5
+
+New features:
+
+- Bump frr-k8s to 0.0.11 (#2357, @AlinaSecret)
+- Support BGP disableMP field in FRR-K8s mode (#2357, @AlinaSecret)
+
+BugFixes:
+
+- Fix the handling of readyness conditions of endpointslices: instead of looking at the serving condition first, we look at the ready condition. This allows metallb to respect the publishNotReadyAddresses field of the services. (#2337, @farodin91)
+
+This release include contributions from Adrian Vondendriesch, Alina Sudakov, clonefetch, Federico Paolinelli, Jan Jansen, lwabish, Micah Nagel, tico88612, tozastation. Thanks!
+
 ## Version 0.14.4
 
 New features:
@@ -268,7 +281,7 @@ v0.12.x version, but now the feature is covered by tests too ([PR 1444](https://
 Changes in behavior:
 
 - the biggest change is the introduction of CRDs and removing support for the configuration via ConfigMap. In order to ease the transition
-  to the new configuration, we provide a conversion tool from ConfigMap to resources (see the "Backward compatibility" section from [the main page](https://metallb.universe.tf/#backward-compatibility)).
+  to the new configuration, we provide a conversion tool from ConfigMap to resources (see the "Backward compatibility" section from [the main page](https://metallb.io/#backward-compatibility)).
 
 - the internal architecture was radically changed in order to accommodate CRDs, so please do not hesitate to [file an issue](https://github.com/metallb/metallb/issues).
 
@@ -500,7 +513,7 @@ cabot, Tomofumi Hayashi, Tony Perez, and Yuan Liu. Thank you!
 
 ## Version 0.9.6
 
-[Documentation for this release](https://metallb.universe.tf)
+[Documentation for this release](https://metallb.io)
 
 Bugfixes:
 
@@ -688,9 +701,9 @@ New features:
   separate public and private interfaces.
 - The website has updated compatibility grids for both [Kubernetes
   network
-  addons](https://metallb.universe.tf/installation/network-addons/)
+  addons](https://metallb.io/installation/network-addons/)
   and [cloud
-  providers](https://metallb.universe.tf/installation/cloud/), listing
+  providers](https://metallb.io/installation/cloud/), listing
   known issues and configuration tips.
 - MetalLB now publishes a Kubernetes event to a service, indicating
   which nodes are announcing that service. This makes it much easier

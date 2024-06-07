@@ -34,7 +34,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
+
+	"errors"
 )
 
 type bgpImplementation string
@@ -100,11 +101,11 @@ newPeers:
 
 	err := c.syncBFDProfiles(cfg.BFDProfiles)
 	if err != nil {
-		return errors.Wrap(err, "failed to sync bfd profiles")
+		return errors.Join(err, errors.New("failed to sync bfd profiles"))
 	}
 	err = c.sessionManager.SyncExtraInfo(cfg.BGPExtras)
 	if err != nil {
-		return errors.Wrap(err, "failed to sync extra info")
+		return errors.Join(err, errors.New("failed to sync extra info"))
 	}
 
 	return c.syncPeers(l)
@@ -125,13 +126,13 @@ func hasHealthyEndpoint(eps []discovery.EndpointSlice, filterNode func(*string) 
 				continue
 			}
 			for _, addr := range ep.Addresses {
-				if _, ok := ready[addr]; !ok && epslices.IsConditionServing(ep.Conditions) {
+				if _, ok := ready[addr]; !ok && epslices.EndpointCanServe(ep.Conditions) {
 					// Only set true if nothing else has expressed an
 					// opinion. This means that false will take precedence
 					// if there's any unready ports for a given endpoint.
 					ready[addr] = true
 				}
-				if !epslices.IsConditionServing(ep.Conditions) {
+				if !epslices.EndpointCanServe(ep.Conditions) {
 					ready[addr] = false
 				}
 			}
