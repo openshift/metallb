@@ -42,6 +42,9 @@ oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce
 oc patch OperatorHub cluster --type json \
     -p '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
 
+echo "######"
+oc -n openshift-marketplace get sa builder -oyaml
+echo "######"
 secret=$(oc -n openshift-marketplace get sa builder -oyaml | grep imagePullSecrets -A 1 | grep -o "builder-.*")
 
 buildindexpod="apiVersion: v1
