@@ -13,8 +13,20 @@ pass=`echo ${pass:1:-1} | base64 -d`
 podman login -u serviceaccount -p ${pass:8} image-registry.openshift-image-registry.svc:5000 --tls-verify=false
 set -x
 
-podman build -f bundleci.Dockerfile --tag image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallboperatorbundle:latest .
-podman push image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallboperatorbundle:latest --tls-verify=false
+set +e
 
-./opm index --skip-tls add --bundles image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallboperatorbundle:latest --tag image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallbindex:latest -p podman --mode semver
-podman push image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallbindex:latest --tls-verify=false
+n=0
+until [ "$n" -ge 5 ]
+do
+   {
+	podman build -f bundleci.Dockerfile --tag image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallboperatorbundle:latest . && 
+	podman push image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallboperatorbundle:latest --tls-verify=false && 
+	./opm index --skip-tls add --bundles image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallboperatorbundle:latest --tag image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallbindex:latest -p podman --mode semver &&
+	podman push image-registry.openshift-image-registry.svc:5000/openshift-marketplace/metallbindex:latest --tls-verify=false
+   } && break
+   n=$((n+1))
+   sleep 5
+done
+
+set -e
+
