@@ -31,18 +31,24 @@ func NeighborInfo(neighborName string, exec executor.Executor) (*Neighbor, error
 	return neighbor, nil
 }
 
-// NeighborsForContainer returns informations for the all the neighbors in the given
+type NeighborsMap map[string]*Neighbor
+
+// NeighborsInfo returns informations for the all the neighbors in the given
 // executor.
-func NeighborsInfo(exec executor.Executor) ([]*Neighbor, error) {
-	res, err := exec.Exec("vtysh", "-c", "show bgp neighbor json")
+func NeighborsInfo(exec executor.Executor) (NeighborsMap, error) {
+	jsonRes, err := exec.Exec("vtysh", "-c", "show bgp neighbor json")
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to query neighbours")
 	}
-	neighbors, err := ParseNeighbours(res)
+	neighbors, err := ParseNeighbours(jsonRes)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to parse neighbours %s", res)
+		return nil, errors.Wrapf(err, "Failed to parse neighbours %s", jsonRes)
 	}
-	return neighbors, nil
+	res := map[string]*Neighbor{}
+	for _, n := range neighbors {
+		res[n.IP.String()] = n
+	}
+	return res, nil
 }
 
 // Routes returns informations about routes in the given executor
