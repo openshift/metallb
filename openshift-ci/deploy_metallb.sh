@@ -16,6 +16,16 @@ wait_for_pods() {
       exit 1
     fi
   done
+
+  attempts=0
+  until oc -n $FRRK8S_NAMESPACE wait --for=condition=Ready --all pods --timeout 900s; do
+    attempts=$((attempts+1))
+    if [ $attempts -ge 5 ]; then
+      echo "failed to wait $FRRK8S_NAMESPACE pods to be ready"
+      exit 1
+    fi
+    sleep 2
+  done
 }
 
 metallb_dir="$(dirname $(readlink -f $0))"
@@ -62,15 +72,12 @@ find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/ope
 find . -type f -name "*clusterserviceversion*.yaml" -exec sed -r -i 's/name: metallb-operator\..*$/name: metallb-operator.v0.0.0/g' {} +
 
 if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
-awk '/DEPLOY_PODMONITORS/ {system("cat frrk8s-cno.patch"); print; next}1' manifests/stable/metallb-operator.clusterserviceversion.yaml  > temp.yaml
-mv temp.yaml manifests/stable/metallb-operator.clusterserviceversion.yaml
+  # - Change the metallb operator's CSV
+  awk '/DEPLOY_PODMONITORS/ {system("cat frrk8s-cno.patch"); print; next}1' manifests/stable/metallb-operator.clusterserviceversion.yaml  > temp.yaml
+  mv temp.yaml manifests/stable/metallb-operator.clusterserviceversion.yaml
 
-end=$((SECONDS+180))
-oc patch featuregate cluster --type json  -p '[{"op": "add", "path": "/spec/featureSet", "value": TechPreviewNoUpgrade}]'
-while [[ -z $(oc get crds networks.operator.openshift.io -o yaml | grep -i "additionalRouting") ]] && [[ ${SECONDS} -lt ${end} ]]; do
-    sleep 1
-done
-
+  # - Change the feature gate to enable frrk8s deployed by CNO
+  ${metallb_dir}/enable_frrk8s_on_cno.sh
 fi
 
 cd -
@@ -191,40 +198,17 @@ EOF
 fi
 
 NAMESPACE="metallb-system"
-
-
-if [[  "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
-
 FRRK8S_NAMESPACE="metallb-system"
 if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
   FRRK8S_NAMESPACE="openshift-frr-k8s"
 fi
 
 
-wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
-
-attempts=0
-until oc -n $FRRK8S_NAMESPACE wait --for=condition=Ready --all pods --timeout 900s; do
-  attempts=$((attempts+1))
-  if [ $attempts -ge 5 ]; then
-    echo "failed to wait frr-k8s pods"
-    exit 1
-  fi
-  sleep 2
-done
-
+if [[  "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
+  wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
 fi
 
 wait_for_pods $NAMESPACE "app=metallb"
-attempts=0
-until oc -n $NAMESPACE wait --for=condition=Ready --all pods --timeout 900s; do
-  attempts=$((attempts+1))
-  if [ $attempts -ge 5 ]; then
-    echo "failed to wait metallb pods"
-    exit 1
-  fi
-  sleep 2
-done
 
 
 ATTEMPTS=0
