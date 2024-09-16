@@ -24,6 +24,7 @@ type Neighbor struct {
 	MsgStats                MessageStats
 	ConfiguredHoldTime      int
 	ConfiguredKeepAliveTime int
+	ConnectionsDropped      int
 }
 
 type Route struct {
@@ -49,6 +50,7 @@ type FRRNeighbor struct {
 	AddressFamilyInfo            map[string]struct {
 		SentPrefixCounter int `json:"sentPrefixCounter"`
 	} `json:"addressFamilyInfo"`
+	ConnectionsDropped int `json:"connectionsDropped"`
 }
 
 type MessageStats struct {
@@ -142,6 +144,7 @@ func ParseNeighbour(vtyshRes string) (*Neighbor, error) {
 			MsgStats:                n.MsgStats,
 			ConfiguredKeepAliveTime: n.ConfiguredKeepAliveTimeMSecs,
 			ConfiguredHoldTime:      n.ConfiguredHoldTimeMSecs,
+			ConnectionsDropped:      n.ConnectionsDropped,
 		}, nil
 	}
 	return nil, errors.New("no peers were returned")
@@ -181,6 +184,7 @@ func ParseNeighbours(vtyshRes string) ([]*Neighbor, error) {
 			MsgStats:                n.MsgStats,
 			ConfiguredKeepAliveTime: n.ConfiguredKeepAliveTimeMSecs,
 			ConfiguredHoldTime:      n.ConfiguredHoldTimeMSecs,
+			ConnectionsDropped:      n.ConnectionsDropped,
 		})
 	}
 	return res, nil
