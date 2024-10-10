@@ -35,7 +35,7 @@ elif [ "${IP_STACK}" = "v4v6" ]; then
 fi
 echo "Skipping ${SKIP}"
 
-## In order to make the VRF leaking tests work we need to 
+## In order to make the VRF leaking tests work we need to
 pods=$(oc get pods -l "app=frr-k8s" -n $FRRK8S_NAMESPACE -o jsonpath='{.items[*].metadata.name}')
 
 echo "creating vrfs in pods $pods"
@@ -52,6 +52,7 @@ export RUN_FRR_CONTAINER_ON_HOST_NETWORK="true"
 make ginkgo
 make kubectl
 
+sleep 5h
 KUBECONFIG_PATH="$KUBECONFIG" GINKGO_ARGS="--skip $SKIP" make e2etests
 
 popd
