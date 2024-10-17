@@ -135,32 +135,13 @@ oc exec -n openshift-marketplace buildindex -- /tmp/metallb-operator-deploy/buil
 oc apply -f metallb-operator-deploy/install-resources.yaml
 
 # there is a race in the creation of the pod and the service account that prevents
-# the index image to be pulled. Here we check if the pod is not running and we kill it.
-success=0
-iterations=0
-sleep_time=10
-max_iterations=72 # results in 12 minutes timeout
-until [[ $success -eq 1 ]] || [[ $iterations -eq $max_iterations ]]
-do
-  run_status=$(oc -n openshift-marketplace get pod | grep metallbindex | awk '{print $3}')
-   if [ "$run_status" == "Running" ]; then
-          success=1
-          break
-   elif [[ "$run_status" == *"Image"*  ]]; then
-       echo "pod in bad status try to recreate the image again status: $run_status"
-       pod_name=$(oc -n openshift-marketplace get pod | grep metallbindex | awk '{print $1}')
-       oc -n openshift-marketplace delete po $pod_name
-   fi
-   iterations=$((iterations+1))
-   sleep $sleep_time
-done
-
-if [[ $success -eq 1 ]]; then
-  echo "[INFO] index image pod running"
-else
-  echo "[ERROR] index image pod failed to run"
-  exit 1
-fi
+# the index image to be pulled. Here we wait service account exists
+timeout 2m bash -c 'until oc get -n openshift-marketplace sa metallbindex; do sleep 5; done'
+# if fails,then script fails with error "Error from server (NotFound): serviceaccounts "metallbindes" not found"
+timeout 2m bash -c 'until oc get -n openshift-marketplace pods -l olm.catalogSource=metallbindex; do sleep 5; done'
+# if fails,then script fails with error "No resources found in openshift-marketplace namespace."
+oc -n openshift-marketplace wait pod -l olm.catalogSource=metallbindex --for=condition=Ready --timeout=20m
+# if fails, then script fails with error "timed out waiting for the condition on pods/metallbindex-8jh2w"
 
 ./wait-for-csv.sh
 
