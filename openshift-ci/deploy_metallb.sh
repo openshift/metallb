@@ -4,18 +4,12 @@ set -euo pipefail
 wait_for_pods() {
   local namespace=$1
   local selector=$2
-  local attempts=0
-  local max_attempts=30
-  local sleep_time=10
 
-  while [[ -z $(oc get pods -n "$namespace" -l "$selector" 2>/dev/null) ]]; do
-    sleep $sleep_time
-    attempts=$((attempts+1))
-    if [ $attempts -eq $max_attempts ]; then
-      echo "failed to wait for pods to appear"
-      exit 1
-    fi
-  done
+  echo "waiting for pods $namespace - $selector to be created"
+  timeout 5m bash -c "until [[ -n \$(oc get pods -n $namespace -l $selector 2>/dev/null) ]]; do sleep 5; done"
+  echo "waiting for pods $namespace to be ready"
+  timeout 5m bash -c "until oc -n $namespace wait --for=condition=Ready --all pods --timeout 2m; do sleep 5; done"
+  echo "pods for $namespace are ready"
 }
 
 metallb_dir="$(dirname $(readlink -f $0))"
@@ -62,15 +56,12 @@ find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/ope
 find . -type f -name "*clusterserviceversion*.yaml" -exec sed -r -i 's/name: metallb-operator\..*$/name: metallb-operator.v0.0.0/g' {} +
 
 if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
-awk '/DEPLOY_PODMONITORS/ {system("cat frrk8s-cno.patch"); print; next}1' manifests/stable/metallb-operator.clusterserviceversion.yaml  > temp.yaml
-mv temp.yaml manifests/stable/metallb-operator.clusterserviceversion.yaml
+  # - Change the metallb operator's CSV to instruct the operator to interact with CNO
+  awk '/DEPLOY_PODMONITORS/ {system("cat frrk8s-cno.patch"); print; next}1' manifests/stable/metallb-operator.clusterserviceversion.yaml  > temp.yaml
+  mv temp.yaml manifests/stable/metallb-operator.clusterserviceversion.yaml
 
-end=$((SECONDS+180))
-oc patch featuregate cluster --type json  -p '[{"op": "add", "path": "/spec/featureSet", "value": TechPreviewNoUpgrade}]'
-while [[ -z $(oc get crds networks.operator.openshift.io -o yaml | grep -i "additionalRouting") ]] && [[ ${SECONDS} -lt ${end} ]]; do
-    sleep 1
-done
-
+  # - Change the feature gate to enable frrk8s deployed by CNO
+  ${metallb_dir}/enable_frrk8s_on_cno.sh
 fi
 
 cd -
@@ -191,40 +182,17 @@ EOF
 fi
 
 NAMESPACE="metallb-system"
-
-
-if [[  "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
-
 FRRK8S_NAMESPACE="metallb-system"
 if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
   FRRK8S_NAMESPACE="openshift-frr-k8s"
 fi
 
 
-wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
-
-attempts=0
-until oc -n $FRRK8S_NAMESPACE wait --for=condition=Ready --all pods --timeout 900s; do
-  attempts=$((attempts+1))
-  if [ $attempts -ge 5 ]; then
-    echo "failed to wait frr-k8s pods"
-    exit 1
-  fi
-  sleep 2
-done
-
+if [[  "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
+  wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
 fi
 
 wait_for_pods $NAMESPACE "app=metallb"
-attempts=0
-until oc -n $NAMESPACE wait --for=condition=Ready --all pods --timeout 900s; do
-  attempts=$((attempts+1))
-  if [ $attempts -ge 5 ]; then
-    echo "failed to wait metallb pods"
-    exit 1
-  fi
-  sleep 2
-done
 
 
 ATTEMPTS=0
