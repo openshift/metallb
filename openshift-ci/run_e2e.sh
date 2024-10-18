@@ -29,6 +29,10 @@ go install github.com/onsi/ginkgo/v2/ginkgo@v2.4.0
 export REPORTER_PATH=/logs/artifacts/
 mkdir -p $REPORTER_PATH
 
+# TODO to be removed
+if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
+	RUN_FRR_K8S_TESTS="true"
+fi
 
 
 if [[ "$RUN_FRR_K8S_TESTS" == "true" ]]; then
