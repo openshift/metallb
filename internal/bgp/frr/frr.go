@@ -266,9 +266,20 @@ func (sm *sessionManager) createConfig() (*frrConfig, error) {
 
 			family := ipfamily.ForAddress(net.ParseIP(host))
 
-			var connectTime uint64
+			var connectTime int64
 			if s.ConnectTime != nil {
-				connectTime = uint64(*s.ConnectTime / time.Second)
+				connectTime = int64(*s.ConnectTime / time.Second)
+			}
+
+			var holdTime *int64
+			var keepaliveTime *int64
+			if s.HoldTime != nil {
+				time := int64(*s.HoldTime / time.Second)
+				holdTime = &time
+			}
+			if s.KeepAliveTime != nil {
+				time := int64(*s.KeepAliveTime / time.Second)
+				keepaliveTime = &time
 			}
 
 			neighbor = &neighborConfig{
@@ -277,8 +288,8 @@ func (sm *sessionManager) createConfig() (*frrConfig, error) {
 				ASN:             s.PeerASN,
 				Addr:            host,
 				Port:            uint16(portUint),
-				HoldTime:        uint64(s.HoldTime / time.Second),
-				KeepaliveTime:   uint64(s.KeepAliveTime / time.Second),
+				HoldTime:        holdTime,
+				KeepaliveTime:   keepaliveTime,
 				ConnectTime:     connectTime,
 				Password:        s.Password,
 				Advertisements:  make([]*advertisementConfig, 0),
