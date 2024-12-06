@@ -50,8 +50,6 @@ if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
   awk '/DEPLOY_PODMONITORS/ {system("cat frrk8s-cno.patch"); print; next}1' manifests/stable/metallb-operator.clusterserviceversion.yaml  > temp.yaml
   mv temp.yaml manifests/stable/metallb-operator.clusterserviceversion.yaml
 
-  # - Change the feature gate to enable frrk8s deployed by CNO
-  ${metallb_dir}/enable_frrk8s_on_cno.sh
 fi
 
 cd -
