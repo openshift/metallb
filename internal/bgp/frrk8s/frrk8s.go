@@ -307,6 +307,7 @@ func (sm *sessionManager) updateConfig() error {
 		}
 		neighbor.ToAdvertise.PrefixesWithCommunity = toAdvertiseWithCommunity(prefixesForCommunity)
 		neighbor.ToAdvertise.PrefixesWithLocalPref = toAdvertiseWithLocalPref(prefixesForLocalPref)
+		neighbor.ToAdvertise.Allowed.Prefixes = removeDuplicates(neighbor.ToAdvertise.Allowed.Prefixes)
 		sort.Strings(neighbor.ToAdvertise.Allowed.Prefixes)
 
 		rout.neighbors[neighborName] = neighbor
@@ -362,7 +363,7 @@ func toAdvertiseWithCommunity(prefixesForCommunity map[string][]string) []frrv1b
 	res := []frrv1beta1.CommunityPrefixes{}
 	for c, prefixes := range prefixesForCommunity {
 		sort.Strings(prefixes)
-		res = append(res, frrv1beta1.CommunityPrefixes{Community: c, Prefixes: prefixes})
+		res = append(res, frrv1beta1.CommunityPrefixes{Community: c, Prefixes: removeDuplicates(prefixes)})
 	}
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].Community < res[j].Community
@@ -370,11 +371,24 @@ func toAdvertiseWithCommunity(prefixesForCommunity map[string][]string) []frrv1b
 	return res
 }
 
+func removeDuplicates(input []string) []string {
+	seen := make(map[string]struct{})
+	result := []string{}
+
+	for _, value := range input {
+		if _, ok := seen[value]; !ok {
+			seen[value] = struct{}{}
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
 func toAdvertiseWithLocalPref(prefixesForLocalPref map[uint32][]string) []frrv1beta1.LocalPrefPrefixes {
 	res := []frrv1beta1.LocalPrefPrefixes{}
 	for p, prefixes := range prefixesForLocalPref {
 		sort.Strings(prefixes)
-		res = append(res, frrv1beta1.LocalPrefPrefixes{LocalPref: p, Prefixes: prefixes})
+		res = append(res, frrv1beta1.LocalPrefPrefixes{LocalPref: p, Prefixes: removeDuplicates(prefixes)})
 	}
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].LocalPref < res[j].LocalPref
