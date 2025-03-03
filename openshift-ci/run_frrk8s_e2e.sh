@@ -42,7 +42,7 @@ pods=$(oc get pods -l "app=frr-k8s" -n $FRRK8S_NAMESPACE -o jsonpath='{.items[*]
 echo "creating vrfs in pods $pods"
 for pod in $pods; do
   echo "creating vrf in pod $pod"
-  oc exec $pod -n $FRRK8S_NAMESPACE -c frr -- ip link add red type vrf table 1100
+  oc exec $pod -n $FRRK8S_NAMESPACE -c frr -- ip link add red type vrf table 900
   oc exec $pod -n $FRRK8S_NAMESPACE -c frr -- ip link set red up
 done
 
