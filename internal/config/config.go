@@ -31,6 +31,8 @@ import (
 	metallbv1beta1 "go.universe.tf/metallb/api/v1beta1"
 	metallbv1beta2 "go.universe.tf/metallb/api/v1beta2"
 	"go.universe.tf/metallb/internal/bgp/community"
+	"go.universe.tf/metallb/internal/ipfamily"
+	k8snodes "go.universe.tf/metallb/internal/k8s/nodes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -100,6 +102,9 @@ type Peer struct {
 	DynamicASN string
 	// Address to dial when establishing the session.
 	Addr net.IP
+	// Iface is the Interface to use for Unnumbered BGP peering.
+	// Addr field must be nil.
+	Iface string
 	// Source address to use when establishing the session.
 	SrcAddr net.IP
 	// Port to dial when establishing the session.
@@ -278,7 +283,7 @@ func peersFor(resources ClusterResources, BFDProfiles map[string]*BFDProfile) (m
 	for _, p := range resources.Peers {
 		peer, err := peerFromCR(p, resources.PasswordSecrets)
 		if err != nil {
-			return nil, errors.Join(err, fmt.Errorf("parsing peer %s", p.Name))
+			return nil, fmt.Errorf("parsing peer %s %w", p.Name, err)
 		}
 		if peer.BFDProfile != "" {
 			if _, ok := BFDProfiles[peer.BFDProfile]; !ok {
@@ -322,6 +327,13 @@ func poolsFor(resources ClusterResources) (*Pools, error) {
 			for _, m := range allCIDRs {
 				if cidrsOverlap(cidr, m) {
 					return nil, fmt.Errorf("CIDR %q in pool %q overlaps with already defined CIDR %q", cidr, p.Name, m)
+				}
+			}
+			// Check pool CIDR is not overlapping with Node IPs
+			nodeIps := k8snodes.NodeIPsForFamily(resources.Nodes, ipfamily.ForCIDR(cidr))
+			for _, nodeIP := range nodeIps {
+				if cidr.Contains(nodeIP) {
+					return nil, fmt.Errorf("pool cidr %q contains nodeIp %q", cidr, nodeIP)
 				}
 			}
 			allCIDRs = append(allCIDRs, cidr)
@@ -389,14 +401,25 @@ func peerFromCR(p metallbv1beta2.BGPPeer, passwordSecrets map[string]corev1.Secr
 	if p.Spec.ASN == p.Spec.MyASN && p.Spec.EBGPMultiHop {
 		return nil, errors.New("invalid ebgp-multihop parameter set for an ibgp peer")
 	}
-	ip := net.ParseIP(p.Spec.Address)
-	if ip == nil {
-		return nil, fmt.Errorf("invalid BGPPeer address %q", p.Spec.Address)
+	if p.Spec.Address == "" && p.Spec.Interface == "" {
+		return nil, fmt.Errorf("peer has no Address or Interface specified")
+	}
+
+	if p.Spec.Address != "" && p.Spec.Interface != "" {
+		return nil, fmt.Errorf("peer has both Address and Interface specified")
 	}
 
 	holdTime, keepaliveTime, err := parseTimers(p.Spec.HoldTime, p.Spec.KeepaliveTime)
 	if err != nil {
 		return nil, fmt.Errorf("invalid BGPPeer timers: %w", err)
+	}
+
+	var ip net.IP
+	if p.Spec.Address != "" {
+		ip = net.ParseIP(p.Spec.Address)
+		if ip == nil {
+			return nil, fmt.Errorf("invalid BGPPeer address %q", p.Spec.Address)
+		}
 	}
 
 	// Ideally we would set a default RouterID here, instead of having
@@ -455,6 +478,7 @@ func peerFromCR(p metallbv1beta2.BGPPeer, passwordSecrets map[string]corev1.Secr
 		ASN:                   p.Spec.ASN,
 		DynamicASN:            string(p.Spec.DynamicASN),
 		Addr:                  ip,
+		Iface:                 p.Spec.Interface,
 		SrcAddr:               src,
 		Port:                  p.Spec.Port,
 		HoldTime:              holdTime,

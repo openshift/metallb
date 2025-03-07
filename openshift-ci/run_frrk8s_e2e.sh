@@ -9,7 +9,7 @@ FRRK8S_DIR="$(dirname $(readlink -f $0))/../../frr"
 KUBECONFIG=$(readlink -f ../../ocp/ostest/auth/kubeconfig)
 pushd $FRRK8S_DIR
 
-SKIP="Leaked.*advertising\|receive.*ips.*from.*some\|VRF.*Advertise.*a.*subset.*of.*ips\|Unnumbered.*"
+SKIP="Leaked.*advertising\|receive.*ips.*from.*some\|VRF.*Advertise.*a.*subset.*of.*ips\|.*Unnumbered.*"
 SKIP="$SKIP\|should.*block.*always.*block.*cidr\|.*EnableGracefulRestart.*"
 
 if [[ "$BGP_TYPE" == "frr-k8s" ]]; then
