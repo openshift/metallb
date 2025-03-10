@@ -17,6 +17,7 @@ fi
 # Skip route injection after setting up speaker. FRR is not refreshed.
 
 SKIP="L2 Cordon|L2 metrics|L2 Node Selector|L2-interface selector|L2ServiceStatus|NetworkUnavailable|NodeExcludeBalancers|$MODE_TO_SKIP"
+SKIP="$SKIP|Unnumbered"
 
 if [ "${IP_STACK}" = "v4" ]; then
 	SKIP="$SKIP|IPV6|DUALSTACK"
