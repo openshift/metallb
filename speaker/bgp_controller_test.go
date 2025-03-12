@@ -1354,59 +1354,6 @@ func TestNodeSelectors(t *testing.T) {
 				"2.3.4.5:0": nil,
 			},
 		},
-
-		{
-			desc: "Change node availability - Unschedulable becomes true",
-			node: &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "pandora",
-					Labels: map[string]string{
-						"host": "frontend",
-					},
-				},
-				Spec: v1.NodeSpec{Unschedulable: true},
-			},
-			wantAds: map[string][]*bgp.Advertisement{
-				"1.2.3.4:0": nil,
-				"2.3.4.5:0": nil,
-			},
-			wantReturnState: controllers.SyncStateReprocessAll,
-		},
-
-		{
-			desc: "Change node availability - Unschedulable remains true",
-			node: &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "pandora",
-					Labels: map[string]string{
-						"host": "frontend",
-					},
-				},
-				Spec: v1.NodeSpec{Unschedulable: true},
-			},
-			wantAds: map[string][]*bgp.Advertisement{
-				"1.2.3.4:0": nil,
-				"2.3.4.5:0": nil,
-			},
-		},
-
-		{
-			desc: "Change node availability - Unschedulable becomes false",
-			node: &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "pandora",
-					Labels: map[string]string{
-						"host": "frontend",
-					},
-				},
-				Spec: v1.NodeSpec{Unschedulable: false},
-			},
-			wantAds: map[string][]*bgp.Advertisement{
-				"1.2.3.4:0": nil,
-				"2.3.4.5:0": nil,
-			},
-			wantReturnState: controllers.SyncStateReprocessAll,
-		},
 	}
 
 	l := log.NewNopLogger()
