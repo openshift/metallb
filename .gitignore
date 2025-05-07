@@ -1,5 +1,4 @@
 *.pyc
-build/
 website/public
 dev-env/unittest/bin
 .envrc
