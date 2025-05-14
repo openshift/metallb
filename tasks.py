@@ -561,7 +561,7 @@ apiServer:
     frr_k8s_ns = "frr-k8s-system"
     if bgp_type == "frr-k8s-external":
         run(
-            "{} apply -f https://raw.githubusercontent.com/metallb/frr-k8s/v0.0.17/config/all-in-one/frr-k8s.yaml".format(
+            "{} apply -f https://raw.githubusercontent.com/metallb/frr-k8s/v0.0.18/config/all-in-one/frr-k8s.yaml".format(
                 kubectl_path
             ),
             echo=True,
@@ -1130,7 +1130,7 @@ def lint(ctx, env="container"):
     convenient to install the golangci-lint binaries on the host. This can be
     achieved by running `inv lint --env host`.
     """
-    version = "1.63.4"
+    version = "1.64.7"
     golangci_cmd = "golangci-lint run --timeout 10m0s ./..."
 
     if env == "container":

@@ -444,7 +444,6 @@ func peerFromCR(p metallbv1beta2.BGPPeer, passwordSecrets map[string]corev1.Secr
 
 	var nodeSels []labels.Selector
 	for _, s := range p.Spec.NodeSelectors {
-		s := s // so we can use &s
 		labelSelector, err := metav1.LabelSelectorAsSelector(&s)
 		if err != nil {
 			return nil, errors.Join(err, fmt.Errorf("failed to convert peer %s node selector", p.Name))
@@ -899,7 +898,7 @@ func validateBGPAdvPerPool(adv *BGPAdvertisement, pool *Pool) error {
 	// Verify that BGP ADVs set a unique local preference value per BGP update.
 	for _, bgpAdv := range pool.BGPAdvertisements {
 		if adv.LocalPref != bgpAdv.LocalPref {
-			if !advertisementsAreCompatible(adv, bgpAdv) {
+			if !advertisementsAreCompatible(adv, bgpAdv, pool) {
 				return fmt.Errorf("invalid local preference %d: local preferernce %d was "+
 					"already set for the same type of BGP update. Check existing BGP advertisements "+
 					"with common pools and aggregation lengths", adv.LocalPref, bgpAdv.LocalPref)
@@ -910,8 +909,8 @@ func validateBGPAdvPerPool(adv *BGPAdvertisement, pool *Pool) error {
 	return nil
 }
 
-func advertisementsAreCompatible(newAdv, adv *BGPAdvertisement) bool {
-	if adv.AggregationLength != newAdv.AggregationLength && adv.AggregationLengthV6 != newAdv.AggregationLengthV6 {
+func advertisementsAreCompatible(newAdv, adv *BGPAdvertisement, pool *Pool) bool {
+	if isAggrLengthDifferent(newAdv, adv, pool) {
 		return true
 	}
 
@@ -937,6 +936,37 @@ func advertisementsAreCompatible(newAdv, adv *BGPAdvertisement) bool {
 	}
 
 	return true
+}
+
+func isAggrLengthDifferent(newAdv, adv *BGPAdvertisement, pool *Pool) bool {
+	var hasV4, hasV6 bool
+	for _, cidrs := range pool.cidrsPerAddresses {
+		family := ipfamily.ForCIDR(cidrs[0])
+		if family == ipfamily.IPv4 {
+			hasV4 = true
+		}
+		if family == ipfamily.IPv6 {
+			hasV6 = true
+		}
+		if hasV4 && hasV6 {
+			break
+		}
+	}
+
+	if !hasV6 && !hasV4 { // compatible?!
+		return true
+	}
+	if adv.AggregationLength != newAdv.AggregationLength && !hasV6 {
+		return true
+	}
+	if adv.AggregationLengthV6 != newAdv.AggregationLengthV6 && !hasV4 {
+		return true
+	}
+	// has both, both must be different
+	if adv.AggregationLength != newAdv.AggregationLength && adv.AggregationLengthV6 != newAdv.AggregationLengthV6 {
+		return true
+	}
+	return false
 }
 
 func ParseCIDR(cidr string) ([]*net.IPNet, error) {
@@ -1046,7 +1076,6 @@ func containsAdvertisement(advs []*L2Advertisement, toCheck *L2Advertisement) bo
 func selectedNodes(nodes []corev1.Node, selectors []metav1.LabelSelector) (map[string]bool, error) {
 	labelSelectors := []labels.Selector{}
 	for _, selector := range selectors {
-		selector := selector // so we can use &selector
 		l, err := metav1.LabelSelectorAsSelector(&selector)
 		if err != nil {
 			return nil, errors.Join(err, fmt.Errorf("invalid label selector %v", selector))
@@ -1074,7 +1103,6 @@ OUTER:
 func selectedPools(pools []metallbv1beta1.IPAddressPool, selectors []metav1.LabelSelector) ([]string, error) {
 	labelSelectors := []labels.Selector{}
 	for _, selector := range selectors {
-		selector := selector // so we can use &selector
 		l, err := metav1.LabelSelectorAsSelector(&selector)
 		if err != nil {
 			return nil, errors.Join(err, fmt.Errorf("invalid label selector %v", selector))
