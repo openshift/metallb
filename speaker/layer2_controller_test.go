@@ -21,6 +21,7 @@ import (
 	discovery "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 )
 
 type fakeSpeakerList struct {
@@ -301,6 +302,71 @@ func TestUsableNodesEPSlices(t *testing.T) {
 			},
 			usableSpeakers:  map[string]bool{"iris1": true, "iris2": true},
 			cExpectedResult: []string{"iris1"},
+		},
+		{
+			desc: "Two endpoints, different hosts, not ready but serving",
+			eps: epslices.EpsOrSlices{
+				SlicesVal: []discovery.EndpointSlice{
+					{
+						Endpoints: []discovery.Endpoint{
+							{
+								Addresses: []string{
+									"2.3.4.5",
+								},
+								NodeName: stringPtr("iris1"),
+								Conditions: discovery.EndpointConditions{
+									Ready:   pointer.BoolPtr(false),
+									Serving: pointer.BoolPtr(true),
+								},
+							},
+							{
+								Addresses: []string{
+									"2.3.4.15",
+								},
+								NodeName: stringPtr("iris2"),
+								Conditions: discovery.EndpointConditions{
+									Ready:   pointer.BoolPtr(false),
+									Serving: pointer.BoolPtr(true),
+								},
+							},
+						},
+					},
+				},
+				Type: epslices.Slices,
+			},
+			usableSpeakers:  map[string]bool{"iris1": true, "iris2": true},
+			cExpectedResult: []string{"iris1", "iris2"},
+		},
+		{
+			desc: "Two endpoints, different hosts, ready but not serving",
+			eps: []discovery.EndpointSlice{
+				{
+					Endpoints: []discovery.Endpoint{
+						{
+							Addresses: []string{
+								"2.3.4.5",
+							},
+							NodeName: ptr.To("iris1"),
+							Conditions: discovery.EndpointConditions{
+								Ready:   ptr.To(true),
+								Serving: ptr.To(false),
+							},
+						},
+						{
+							Addresses: []string{
+								"2.3.4.15",
+							},
+							NodeName: ptr.To("iris2"),
+							Conditions: discovery.EndpointConditions{
+								Ready:   ptr.To(true),
+								Serving: ptr.To(false),
+							},
+						},
+					},
+				},
+			},
+			usableSpeakers:  map[string]bool{"iris1": true, "iris2": true},
+			cExpectedResult: []string{"iris1", "iris2"},
 		},
 	}
 
