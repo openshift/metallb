@@ -139,6 +139,8 @@ fi
 oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce=baseline
 oc label ns metallb-system openshift.io/cluster-monitoring=true
 
+enable_frr_k8s_debug
+
 if [[ -z "${BGP_TYPE}" ]]; then
 oc apply -f - <<EOF
 apiVersion: metallb.io/v1beta1
