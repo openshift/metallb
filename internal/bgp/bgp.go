@@ -68,7 +68,6 @@ type SessionParameters struct {
 	MyASN           uint32
 	RouterID        net.IP
 	PeerASN         uint32
-	DynamicASN      string
 	HoldTime        *time.Duration
 	KeepAliveTime   *time.Duration
 	ConnectTime     *time.Duration
