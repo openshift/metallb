@@ -21,3 +21,19 @@ wait_for_pods() {
   timeout 5m bash -c "until oc -n $namespace wait --for=condition=Ready --all pods --timeout 2m; do sleep 5; done"
   echo "pods for $namespace are ready"
 }
+
+enable_frr_k8s_debug() {
+  local FRRK8S_NAMESPACE="openshift-frr-k8s"
+  echo "Enabling debug for frr-k8s"
+  oc create ns ${FRRK8S_NAMESPACE} || true
+
+  oc apply -f - <<EOF
+apiVersion: v1  
+kind: ConfigMap  
+metadata:  
+  name: env-overrides  
+  namespace: ${FRRK8S_NAMESPACE}
+data:  
+  frrk8s-loglevel: "--log-level=debug"
+EOF
+}

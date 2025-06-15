@@ -10,6 +10,8 @@ FRR_IMAGE_TAG=${FRR_IMAGE_TAG:-"metallb-frr"}
 
 FRRK8S_NAMESPACE="openshift-frr-k8s"
 
+enable_frr_k8s_debug
+
 oc patch networks.operator.openshift.io cluster --type json  -p '[{"op": "add", "path": "/spec/additionalRoutingCapabilities", "value": {providers: ["FRR"]}}]'
 
 wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
