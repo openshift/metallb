@@ -260,6 +260,7 @@ func (sm *sessionManager) updateConfig() error {
 
 			neighbor = frrv1beta1.Neighbor{
 				ASN:           s.PeerASN,
+				DynamicASN:    frrv1beta1.DynamicASNMode(s.DynamicASN),
 				Address:       host,
 				Port:          &portUint16,
 				HoldTime:      holdTime,

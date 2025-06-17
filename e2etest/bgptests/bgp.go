@@ -1614,7 +1614,7 @@ var _ = ginkgo.Describe("BGP", func() {
 		ginkgo.Entry("IPV4", ipfamily.IPv4, []string{l2tests.IPV4ServiceRange}),
 		ginkgo.Entry("IPV6", ipfamily.IPv6, []string{l2tests.IPV6ServiceRange}),
 	)
-	ginkgo.DescribeTable("FRR-MODE establishes connections with dynamic ASN ", func(pairingIPFamily ipfamily.Family) {
+	ginkgo.DescribeTable("FRR establishes connections with dynamic ASN ", func(pairingIPFamily ipfamily.Family) {
 		resources := config.Resources{
 			Peers: metallb.PeersForContainers(FRRContainers, pairingIPFamily, func(p *metallbv1beta2.BGPPeer) {
 				dynamicASN := metallbv1beta2.InternalASNMode
