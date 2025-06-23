@@ -32,7 +32,6 @@ import (
 	metallbv1beta2 "go.universe.tf/metallb/api/v1beta2"
 	"go.universe.tf/metallb/internal/bgp/community"
 	"go.universe.tf/metallb/internal/ipfamily"
-	k8snodes "go.universe.tf/metallb/internal/k8s/nodes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -134,9 +133,8 @@ type Peer struct {
 	EBGPMultiHop bool
 	// Optional name of the vrf to establish the session from
 	VRF string
-	// Option to disable MP BGP that will result in separation of IPv4 and IPv6 route exchanges into distinct BGP sessions.
-	DisableMP bool
-	// TODO: more BGP session settings
+	// Option to advertise v4 addresses over v6 sessions and viceversa.
+	DualStackAddressFamily bool
 }
 
 // Pool is the configuration of an IP address pool.
@@ -329,13 +327,6 @@ func poolsFor(resources ClusterResources) (*Pools, error) {
 					return nil, fmt.Errorf("CIDR %q in pool %q overlaps with already defined CIDR %q", cidr, p.Name, m)
 				}
 			}
-			// Check pool CIDR is not overlapping with Node IPs
-			nodeIps := k8snodes.NodeIPsForFamily(resources.Nodes, ipfamily.ForCIDR(cidr))
-			for _, nodeIP := range nodeIps {
-				if cidr.Contains(nodeIP) {
-					return nil, fmt.Errorf("pool cidr %q contains nodeIp %q", cidr, nodeIP)
-				}
-			}
 			allCIDRs = append(allCIDRs, cidr)
 		}
 
@@ -472,27 +463,27 @@ func peerFromCR(p metallbv1beta2.BGPPeer, passwordSecrets map[string]corev1.Secr
 	}
 
 	return &Peer{
-		Name:                  p.Name,
-		MyASN:                 p.Spec.MyASN,
-		ASN:                   p.Spec.ASN,
-		DynamicASN:            string(p.Spec.DynamicASN),
-		Addr:                  ip,
-		Iface:                 p.Spec.Interface,
-		SrcAddr:               src,
-		Port:                  p.Spec.Port,
-		HoldTime:              holdTime,
-		KeepaliveTime:         keepaliveTime,
-		ConnectTime:           connectTime,
-		RouterID:              routerID,
-		NodeSelectors:         nodeSels,
-		SecretPassword:        secretPassword,
-		Password:              p.Spec.Password,
-		PasswordRef:           p.Spec.PasswordSecret,
-		BFDProfile:            p.Spec.BFDProfile,
-		EnableGracefulRestart: p.Spec.EnableGracefulRestart,
-		EBGPMultiHop:          p.Spec.EBGPMultiHop,
-		VRF:                   p.Spec.VRFName,
-		DisableMP:             p.Spec.DisableMP,
+		Name:                   p.Name,
+		MyASN:                  p.Spec.MyASN,
+		ASN:                    p.Spec.ASN,
+		DynamicASN:             string(p.Spec.DynamicASN),
+		Addr:                   ip,
+		Iface:                  p.Spec.Interface,
+		SrcAddr:                src,
+		Port:                   p.Spec.Port,
+		HoldTime:               holdTime,
+		KeepaliveTime:          keepaliveTime,
+		ConnectTime:            connectTime,
+		RouterID:               routerID,
+		NodeSelectors:          nodeSels,
+		SecretPassword:         secretPassword,
+		Password:               p.Spec.Password,
+		PasswordRef:            p.Spec.PasswordSecret,
+		BFDProfile:             p.Spec.BFDProfile,
+		EnableGracefulRestart:  p.Spec.EnableGracefulRestart,
+		EBGPMultiHop:           p.Spec.EBGPMultiHop,
+		VRF:                    p.Spec.VRFName,
+		DualStackAddressFamily: p.Spec.DualStackAddressFamily,
 	}, nil
 }
 
