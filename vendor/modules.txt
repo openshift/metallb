@@ -196,7 +196,7 @@ github.com/mdlayher/packet
 # github.com/mdlayher/socket v0.2.1
 ## explicit; go 1.17
 github.com/mdlayher/socket
-# github.com/metallb/frr-k8s v0.0.18
+# github.com/metallb/frr-k8s v0.0.20
 ## explicit; go 1.24.0
 github.com/metallb/frr-k8s/api/v1beta1
 # github.com/miekg/dns v1.1.43
