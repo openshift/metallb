@@ -1418,7 +1418,7 @@ var _ = ginkgo.Describe("BGP", func() {
 				config := frrk8sv1beta1.FRRConfiguration{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "receiveroutes",
-						Namespace: testNamespace,
+						Namespace: metallb.FRRK8sNamespace,
 					},
 					Spec: frrk8sv1beta1.FRRConfigurationSpec{
 						BGP: frrk8sv1beta1.BGPConfig{
@@ -1474,9 +1474,25 @@ var _ = ginkgo.Describe("BGP", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
+			removeFRRConfiguration := func() {
+				config := frrk8sv1beta1.FRRConfiguration{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "receiveroutes",
+						Namespace: metallb.FRRK8sNamespace,
+					},
+				}
+
+				err := ConfigUpdater.Client().Delete(context.Background(), &config)
+				if k8serrors.IsNotFound(err) {
+					return
+				}
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			apply := applyConfigMap
 			if what == frrconfiguration {
 				apply = applyFRRConfiguration
+				defer removeFRRConfiguration()
 			}
 
 			if when == before {
@@ -1655,7 +1671,6 @@ var _ = ginkgo.Describe("BGP", func() {
 			resources := config.Resources{
 				Peers: metallb.PeersForContainers(FRRContainers, ipfamily.IPv4, func(p *metallbv1beta2.BGPPeer) {
 					p.Spec.ConnectTime = ptr.To(metav1.Duration{Duration: connectTime})
-					p.Spec.DisableMP = true
 				}),
 			}
 			err := ConfigUpdater.Update(resources)
