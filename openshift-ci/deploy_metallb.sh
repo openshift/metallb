@@ -8,9 +8,9 @@ source ${metallb_dir}/common.sh
 
 METALLB_OPERATOR_REPO=${METALLB_OPERATOR_REPO:-"https://github.com/openshift/metallb-operator.git"}
 METALLB_OPERATOR_BRANCH=${METALLB_OPERATOR_BRANCH:-"main"}
-METALLB_IMAGE_BASE=${METALLB_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable/g' | sed -e 's/@.*$//g')}
+METALLB_IMAGE_BASE=${METALLB_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable-initial/g' | sed -e 's/@.*$//g')}
 METALLB_IMAGE_TAG=${METALLB_IMAGE_TAG:-"metallb"}
-KUBERBAC_IMAGE_BASE=${KUBERBAC_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable/g' | sed -e 's/@.*$//g')}
+KUBERBAC_IMAGE_BASE=${KUBERBAC_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable-initial/g' | sed -e 's/@.*$//g')}
 KUBERBAC_IMAGE_TAG=${KUBERBAC_IMAGE_TAG:-"kube-rbac-proxy"}
 METALLB_OPERATOR_IMAGE_TAG=${METALLB_OPERATOR_IMAGE_TAG:-"metallb-operator"}
 FRR_IMAGE_TAG=${FRR_IMAGE_TAG:-"metallb-frr"}
