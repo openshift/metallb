@@ -18,8 +18,8 @@ wait_for_pods() {
   echo "waiting for pods $namespace - $selector to be created"
   timeout 5m bash -c "until [[ -n \$(oc get pods -n $namespace -l $selector 2>/dev/null) ]]; do sleep 5; done"
   echo "waiting for pods $namespace to be ready"
-  timeout 5m bash -c "until oc -n $namespace wait --for=condition=Ready --all pods --timeout 2m; do sleep 5; done"
-  echo "pods for $namespace are ready"
+  oc wait --for=condition=Ready --all pods -n "$namespace" --timeout=5m
+  echo "pods for $namespace with selector $selector are ready"
 }
 
 enable_frr_k8s_debug() {
