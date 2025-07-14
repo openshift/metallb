@@ -28,12 +28,12 @@ enable_frr_k8s_debug() {
   oc create ns ${FRRK8S_NAMESPACE} || true
 
   oc apply -f - <<EOF
-apiVersion: v1  
-kind: ConfigMap  
-metadata:  
-  name: env-overrides  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-overrides
   namespace: ${FRRK8S_NAMESPACE}
-data:  
+data:
   frrk8s-loglevel: "--log-level=debug"
 EOF
 }
