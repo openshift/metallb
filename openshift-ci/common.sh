@@ -37,3 +37,11 @@ data:
   frrk8s-loglevel: "--log-level=debug"
 EOF
 }
+
+wait_for_csv() {
+  local namespace=$1
+  local csv=$2
+
+  timeout 5m bash -c "until oc get csv -n $namespace $csv; do sleep 5; done"
+  oc wait --for jsonpath='{.status.phase}'=Succeeded csv/"$csv" -n "$namespace" --timeout=300s
+}

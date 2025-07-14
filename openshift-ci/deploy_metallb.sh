@@ -130,7 +130,7 @@ else
   exit 1
 fi
 
-./wait-for-csv.sh
+wait_for_csv $NAMESPACE "metallb-operator.v0.0.0"
 
 oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce=baseline
 oc label ns metallb-system openshift.io/cluster-monitoring=true
