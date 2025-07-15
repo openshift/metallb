@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: env-overrides
-  namespace: openshift-frr-k8s
-data:
-  frrk8s-loglevel: "--log-level=debug"
