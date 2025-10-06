@@ -4,7 +4,6 @@ set -euo pipefail
 metallb_dir="$(dirname $(readlink -f $0))"
 source ${metallb_dir}/common.sh
 
-BGP_TYPE=${BGP_TYPE:-""}
 IP_STACK=${IP_STACK:-""}
 RUN_FRR_K8S_TESTS=${RUN_FRR_K8S_TESTS:-""}
 
@@ -30,7 +29,7 @@ mkdir -p $REPORTER_PATH
 go install github.com/onsi/ginkgo/v2/ginkgo@v2.20.2
 
 if [[ "$RUN_FRR_K8S_TESTS" == "true" ]]; then
-	${metallb_dir}/run_frrk8s_e2e.sh $BGP_TYPE $IP_STACK
+	${metallb_dir}/run_frrk8s_e2e.sh $IP_STACK
 else
-	${metallb_dir}/run_metallb_e2e.sh $BGP_TYPE $IP_STACK
+	${metallb_dir}/run_metallb_e2e.sh $IP_STACK
 fi
