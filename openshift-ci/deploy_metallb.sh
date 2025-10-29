@@ -59,6 +59,8 @@ kind: Pod
 metadata:
   name: buildindex
   namespace: openshift-marketplace
+  labels:
+    app: buildindex
 spec:
   restartPolicy: Never
   serviceAccountName: builder
@@ -85,6 +87,25 @@ spec:
 "
 
 echo "$buildindexpod" | oc apply -f -
+
+networkpolicy="apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-buildindex
+  namespace: openshift-marketplace
+spec:
+  podSelector:
+    matchLabels:
+      app: buildindex
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - {}
+  egress:
+  - {}
+"
+echo "$networkpolicy" | oc apply -f -
 
 success=0
 iterations=0
