@@ -1,8 +1,8 @@
 module go.universe.tf/metallb
 
-go 1.25
+go 1.24.0
 
-toolchain go1.25.3
+toolchain go1.24.6
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
