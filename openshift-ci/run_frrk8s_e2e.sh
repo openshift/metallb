@@ -1,8 +1,7 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-BGP_TYPE=$1
-IP_STACK=$2
+IP_STACK=$1
 
 FRRK8S_DIR="$(dirname $(readlink -f $0))/../../frr"
 
@@ -12,14 +11,7 @@ pushd $FRRK8S_DIR
 SKIP="Leaked.*advertising\|receive.*ips.*from.*some\|VRF.*Advertise.*a.*subset.*of.*ips\|.*Unnumbered.*"
 SKIP="$SKIP\|should.*block.*always.*block.*cidr\|.*EnableGracefulRestart.*\|BGPSessionState.*Each.*node.*manages.*its.*statuses.*"
 
-if [[ "$BGP_TYPE" == "frr-k8s" ]]; then
-  SKIP="$SKIP\|metrics"  # because when running as a metallb pod the metrics are overridden.
-fi
-
-FRRK8S_NAMESPACE="metallb-system"
-if [[ "$BGP_TYPE" == "frr-k8s-cno" ]]; then
-  FRRK8S_NAMESPACE="openshift-frr-k8s"
-fi
+FRRK8S_NAMESPACE="openshift-frr-k8s"
 
 if [ "${IP_STACK}" = "v4" ]; then
 	SKIP="$SKIP\|IPV6\|DUALSTACK"

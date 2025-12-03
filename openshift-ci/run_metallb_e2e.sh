@@ -1,24 +1,17 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-BGP_TYPE=$1
-IP_STACK=$2
+IP_STACK=$1
 
-if [[ "$BGP_TYPE" == "frr-k8s" || "$BGP_TYPE" == "frr-k8s-cno" ]]; then
-	MODE_TO_SKIP="FRR-MODE"
-	BGP_MODE="frr-k8s"
-else
-	MODE_TO_SKIP="FRRK8S-MODE"
-	BGP_MODE="frr"
-fi
 # need to skip L2 metrics / node selector test because the pod that's running the tests is not
 # same subnet of the cluster nodes, so the arp request that's done in the test won't work.
 # Also, skip l2 interface selector as it's not supported d/s currently.
 # Skip route injection after setting up speaker. FRR is not refreshed.
 
-SKIP="L2 Cordon|L2 metrics|L2 Node Selector|L2-interface selector|L2ServiceStatus|NetworkUnavailable|NodeExcludeBalancers|$MODE_TO_SKIP"
+SKIP="L2 Cordon|L2 metrics|L2 Node Selector|L2-interface selector|L2ServiceStatus|NetworkUnavailable|NodeExcludeBalancers"
 SKIP="$SKIP|Unnumbered"
 SKIP="$SKIP|Networkpolicies"
+SKIP="$SKIP|FRR-MODE"
 
 if [ "${IP_STACK}" = "v4" ]; then
 	SKIP="$SKIP|IPV6|DUALSTACK"
@@ -40,10 +33,6 @@ set -e
 
 pip3 install --user -r ./../dev-env/requirements.txt
 
-FRRK8S_NAMESPACE=""
-if [[ "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
-  FRRK8S_NAMESPACE="--frr-k8s-namespace=openshift-frr-k8s"
-fi
 
 # Install ginkgo CLI.
 export PATH=${PATH}:${HOME}/.local/bin
@@ -56,7 +45,7 @@ inv e2etest --kubeconfig=$(readlink -f ../../ocp/ostest/auth/kubeconfig) \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
 	--prometheus-namespace="openshift-monitoring" \
 	--local-nics="_" --node-nics="_" --skip="${SKIP}" --external-frr-image="quay.io/frrouting/frr:8.5.3" \
-	--bgp-mode="$BGP_MODE" $FRRK8S_NAMESPACE 
+	--bgp-mode="frr-k8s" --frr-k8s-namespace=openshift-frr-k8s
 
 cp -r /tmp/report $REPORTER_PATH
 
@@ -69,4 +58,4 @@ inv e2etest --kubeconfig=$(readlink -f ../../ocp/ostest/auth/kubeconfig) \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
 	--prometheus-namespace="openshift-monitoring" \
 	--local-nics="_" --node-nics="_" --focus="${FOCUS_EBGP}" --external-frr-image="quay.io/frrouting/frr:8.5.3" \
-	--host-bgp-mode="ebgp" --bgp-mode="$BGP_MODE" $FRRK8S_NAMESPACE
+	--host-bgp-mode="ebgp" --bgp-mode="frr-k8s" --frr-k8s-namespace=openshift-frr-k8s

@@ -13,8 +13,6 @@ METALLB_IMAGE_TAG=${METALLB_IMAGE_TAG:-"metallb"}
 KUBERBAC_IMAGE_BASE=${KUBERBAC_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable/g' | sed -e 's/@.*$//g')}
 KUBERBAC_IMAGE_TAG=${KUBERBAC_IMAGE_TAG:-"kube-rbac-proxy"}
 METALLB_OPERATOR_IMAGE_TAG=${METALLB_OPERATOR_IMAGE_TAG:-"metallb-operator"}
-FRR_IMAGE_TAG=${FRR_IMAGE_TAG:-"metallb-frr"}
-BGP_TYPE=${BGP_TYPE:-""}
 export NAMESPACE=${NAMESPACE:-"metallb-system"}
 
 if [ ! -d ./metallb-operator ]; then
@@ -37,8 +35,6 @@ cd metallb-operator-deploy
 
 ESCAPED_METALLB_IMAGE=$(printf '%s\n' "${METALLB_IMAGE_BASE}:${METALLB_IMAGE_TAG}" | sed -e 's/[]\/$*.^[]/\\&/g');
 find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/openshift\/origin-metallb:.*$/'"$ESCAPED_METALLB_IMAGE"'/g' {} +
-ESCAPED_FRR_IMAGE=$(printf '%s\n' "${METALLB_IMAGE_BASE}:${FRR_IMAGE_TAG}" | sed -e 's/[]\/$*.^[]/\\&/g');
-find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/openshift\/origin-metallb-frr:.*$/'"$ESCAPED_FRR_IMAGE"'/g' {} +
 ESCAPED_OPERATOR_IMAGE=$(printf '%s\n' "${METALLB_IMAGE_BASE}:${METALLB_OPERATOR_IMAGE_TAG}" | sed -e 's/[]\/$*.^[]/\\&/g');
 find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/openshift\/origin-metallb-operator:.*$/'"$ESCAPED_OPERATOR_IMAGE"'/g' {} +
 ESCAPED_KUBERBAC_IMAGE=$(printf '%s\n' "${KUBERBAC_IMAGE_BASE}:${KUBERBAC_IMAGE_TAG}" | sed -e 's/[]\/$*.^[]/\\&/g');
@@ -155,25 +151,13 @@ else
   exit 1
 fi
 
-./wait-for-csv.sh
+wait_for_csv $NAMESPACE "metallb-operator.v0.0.0"
 
 oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce=baseline
 oc label ns metallb-system openshift.io/cluster-monitoring=true
 
 enable_frr_k8s_debug
 
-if [[ -z "${BGP_TYPE}" ]]; then
-oc apply -f - <<EOF
-apiVersion: metallb.io/v1beta1
-kind: MetalLB
-metadata:
-  name: metallb
-  namespace: metallb-system
-spec:
-  logLevel: debug
-  bgpBackend: frr
-EOF
-else
 oc apply -f - <<EOF
 apiVersion: metallb.io/v1beta1
 kind: MetalLB
@@ -183,19 +167,11 @@ metadata:
 spec:
   logLevel: debug
 EOF
-fi
 
 NAMESPACE="metallb-system"
-FRRK8S_NAMESPACE="metallb-system"
-if [[ "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
-  FRRK8S_NAMESPACE="openshift-frr-k8s"
-fi
+FRRK8S_NAMESPACE="openshift-frr-k8s"
 
-
-if [[  "$BGP_TYPE" == "frr-k8s-cno" || "$BGP_TYPE" == "frr-k8s" ]]; then
-  wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
-fi
-
+wait_for_pods $FRRK8S_NAMESPACE "app=frr-k8s"
 wait_for_pods $NAMESPACE "app=metallb"
 
 
