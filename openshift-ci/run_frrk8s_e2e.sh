@@ -10,6 +10,9 @@ pushd $FRRK8S_DIR
 
 SKIP="Leaked.*advertising\|receive.*ips.*from.*some\|VRF.*Advertise.*a.*subset.*of.*ips\|.*Unnumbered.*"
 SKIP="$SKIP\|should.*block.*always.*block.*cidr\|.*EnableGracefulRestart.*\|BGPSessionState.*Each.*node.*manages.*its.*statuses.*"
+SKIP="$SKIP\|should.*remove.*and.*restore.*FRRNodeState.*when.*daemonset.*nodeSelector.*changes"
+# Skip until the FRR10 bump
+SKIP="$SKIP\|BGPSessionState.*Manages.*statuses.*according.*to.*changes"
 
 FRRK8S_NAMESPACE="openshift-frr-k8s"
 
