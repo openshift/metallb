@@ -78,7 +78,7 @@ var (
 	PrometheusNamespace string
 )
 
-var _ = ginkgo.Describe("BGP", func() {
+var _ = ginkgo.Describe("BGP ", func() {
 	var cs clientset.Interface
 	emptyBGPAdvertisement := metallbv1beta1.BGPAdvertisement{
 		ObjectMeta: metav1.ObjectMeta{
