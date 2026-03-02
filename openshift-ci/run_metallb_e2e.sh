@@ -31,8 +31,17 @@ echo "Skipping ${SKIP}"
 # Let's enforce failing when running the tests
 set -e
 
-pip3 install --user -r ./../dev-env/requirements.txt
+# Install Python 3.13 if not available
+if ! command -v python3.13 &> /dev/null; then
+    echo "Installing Python 3.13..."
+    dnf install -y python3.13 python3.13-pip
+fi
 
+echo "Creating Python 3.13 virtual environment..."
+python3.13 -m venv /tmp/metallb-venv
+source /tmp/metallb-venv/bin/activate
+
+pip3 install -r ./../dev-env/requirements.txt
 
 # Install ginkgo CLI.
 export PATH=${PATH}:${HOME}/.local/bin
