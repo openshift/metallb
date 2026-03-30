@@ -35,6 +35,7 @@ metadata:
   namespace: ${FRRK8S_NAMESPACE}
 data:
   frrk8s-loglevel: "--log-level=debug"
+  frrk8s-poll-interval: "--poll-interval=5s"
 EOF
 }
 
