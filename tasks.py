@@ -432,7 +432,7 @@ def generate_manifest(
         "ip_family": "Optional ipfamily of the cluster."
         "Default: ipv4, supported families are 'ipv6' and 'dual'.",
         "bgp_type": "Type of BGP implementation to use."
-        "Supported: 'frr' (default), 'native', 'frr-k8s', 'frr-k8s-external'",
+        "Supported: 'frr-k8s' (default), 'native', 'frr' (deprecated), 'frr-k8s-external'",
         "frr_volume_dir": "FRR router config directory to be mounted inside frr container. "
         "Default: ./dev-env/bgp/frr-volume",
         "log_level": "Log level for the controller and the speaker."
@@ -452,7 +452,7 @@ def dev_env(
     frr_volume_dir="",
     node_img=None,
     ip_family="ipv4",
-    bgp_type="frr",
+    bgp_type="frr-k8s",
     log_level="info",
     helm_install=False,
     build_images=True,
@@ -558,12 +558,23 @@ apiServer:
 
     frr_k8s_ns = "frr-k8s-system"
     if bgp_type == "frr-k8s-external":
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            frr_k8s_manifest_path = f.name
+            result = run(
+                "curl -sL https://raw.githubusercontent.com/metallb/frr-k8s/v0.0.22/config/all-in-one/frr-k8s.yaml",
+                hide=True,
+            )
+            f.write(
+                result.stdout.replace(
+                    "gcr.io/kubebuilder/kube-rbac-proxy",
+                    "registry.k8s.io/kubebuilder/kube-rbac-proxy",
+                )
+            )
         run(
-            "{} apply -f https://raw.githubusercontent.com/metallb/frr-k8s/v0.0.22/config/all-in-one/frr-k8s.yaml".format(
-                kubectl_path
-            ),
+            "{} apply -f {}".format(kubectl_path, frr_k8s_manifest_path),
             echo=True,
         )
+        os.unlink(frr_k8s_manifest_path)
         time.sleep(2)
         run(
             "{} -n {} wait --for=condition=Ready --all pods --timeout 300s".format(
@@ -585,7 +596,7 @@ apiServer:
         frr_values = ""
 
         if bgp_type == "frr":
-            frr_values = "--set speaker.frr.enabled=true "
+            frr_values = "--set speaker.frr.enabled=true --set frrk8s.enabled=false "
         if bgp_type == "frr-k8s":
             frr_values = "--set frrk8s.enabled=true --set speaker.frr.enabled=false --set frr-k8s.prometheus.serviceMonitor.enabled=false "
             if with_prometheus:
@@ -602,9 +613,11 @@ apiServer:
                 )
 
         if bgp_type == "frr-k8s-external":
-            frr_values = "--set frrk8s.external=true --set frrk8s.namespace={} --set speaker.frr.enabled=false --set frr-k8s.prometheus.serviceMonitor.enabled=false ".format(
+            frr_values = "--set frrk8s.external=true --set frrk8s.enabled=false --set frrk8s.namespace={} --set speaker.frr.enabled=false --set frr-k8s.prometheus.serviceMonitor.enabled=false ".format(
                 frr_k8s_ns
             )
+        if bgp_type == "native":
+            frr_values = "--set speaker.frr.enabled=false --set frrk8s.enabled=false "
 
         run(
             "helm install metallb charts/metallb/ --set controller.image.tag=dev-{} "
@@ -755,7 +768,7 @@ def bgp_dev_env(ip_family, frr_volume_dir):
     )
     run(
         "docker run -d --privileged --network kind --rm --ulimit core=-1 --name frr --volume %s:/etc/frr "
-        "quay.io/frrouting/frr:10.4.1" % frr_volume_dir,
+        "quay.io/frrouting/frr:10.5.1" % frr_volume_dir,
         echo=True,
     )
 
