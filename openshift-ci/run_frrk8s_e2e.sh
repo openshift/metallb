@@ -13,6 +13,8 @@ SKIP="$SKIP\|should.*block.*always.*block.*cidr\|.*EnableGracefulRestart.*\|BGPS
 SKIP="$SKIP\|should.*remove.*and.*restore.*FRRNodeState.*when.*daemonset.*nodeSelector.*changes"
 # Skip until the FRR10 bump
 SKIP="$SKIP\|BGPSessionState.*Manages.*statuses.*according.*to.*changes"
+# Skip until CNO and u/s labels are aligned for the status cleaner.
+SKIP="$SKIP\|Logging.*for.*status.*cleaner"
 
 FRRK8S_NAMESPACE="openshift-frr-k8s"
 
