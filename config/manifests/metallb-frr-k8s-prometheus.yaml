@@ -637,14 +637,14 @@ spec:
                 type: string
               ebgpMultiHop:
                 description: To set if the BGPPeer is multi-hops away. Needed for
-                  FRR mode only.
+                  FRR-based modes (FRR-K8s, FRR) only.
                 type: boolean
               enableGracefulRestart:
                 description: |-
                   EnableGracefulRestart allows BGP peer to continue to forward data packets
                   along known routes while the routing protocol information is being
                   restored. This field is immutable because it requires restart of the BGP
-                  session. Supported for FRR mode only.
+                  session. Supported for FRR-based modes (FRR-K8s, FRR) only.
                 type: boolean
                 x-kubernetes-validations:
                 - message: EnableGracefulRestart cannot be changed after creation
@@ -3326,7 +3326,7 @@ spec:
         - --upstream=http://127.0.0.1:7472/
         - --logtostderr=true
         - --v=0
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.12.0
+        image: registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.12.0
         name: kube-rbac-proxy
         ports:
         - containerPort: 9120
@@ -3496,7 +3496,7 @@ spec:
         - --upstream=http://127.0.0.1:7572/
         - --logtostderr=true
         - --v=0
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
+        image: registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.13.1
         name: kube-rbac-proxy
         ports:
         - containerPort: 9140
@@ -3519,7 +3519,7 @@ spec:
         - --upstream=http://127.0.0.1:7573/
         - --logtostderr=true
         - --v=0
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
+        image: registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.13.1
         name: kube-rbac-proxy-frr
         ports:
         - containerPort: 9141
@@ -3864,7 +3864,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.12.0
+        image: registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.12.0
         name: kube-rbac-proxy
         ports:
         - containerPort: 9120
