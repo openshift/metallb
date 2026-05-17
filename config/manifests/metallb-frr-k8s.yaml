@@ -488,7 +488,7 @@ spec:
                 type: string
               myASN:
                 description: AS number to use for the local end of the session.
-                format: int32
+                format: int64
                 maximum: 4294967295
                 minimum: 0
                 type: integer
@@ -528,7 +528,7 @@ spec:
                 type: string
               peerASN:
                 description: AS number to expect from the remote end of the session.
-                format: int32
+                format: int64
                 maximum: 4294967295
                 minimum: 0
                 type: integer
@@ -663,9 +663,20 @@ spec:
               keepaliveTime:
                 description: Requested BGP keepalive time, per RFC4271.
                 type: string
+              localASN:
+                description: |-
+                  LocalASN allows advertising a different AS number to the peer using BGP's
+                  local-as feature. When set, MetalLB will advertise this ASN to the peer
+                  via "neighbor <peer> local-as <ASN> no-prepend replace-as", overriding
+                  the router-level MyASN for this specific session.
+                  Not supported in native BGP mode.
+                format: int32
+                maximum: 4294967295
+                minimum: 1
+                type: integer
               myASN:
                 description: AS number to use for the local end of the session.
-                format: int32
+                format: int64
                 maximum: 4294967295
                 minimum: 0
                 type: integer
@@ -748,7 +759,7 @@ spec:
                 description: |-
                   AS number to expect from the remote end of the session.
                   ASN and DynamicASN are mutually exclusive and one of them must be specified.
-                format: int32
+                format: int64
                 maximum: 4294967295
                 minimum: 0
                 type: integer
@@ -788,7 +799,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: bgpsessionstates.frrk8s.metallb.io
 spec:
   group: frrk8s.metallb.io
@@ -1064,7 +1075,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: frrconfigurations.frrk8s.metallb.io
 spec:
   group: frrk8s.metallb.io
@@ -1186,7 +1197,7 @@ spec:
                         asn:
                           description: ASN is the AS number to use for the local end
                             of the session.
-                          format: int32
+                          format: int64
                           maximum: 4294967295
                           minimum: 0
                           type: integer
@@ -1220,7 +1231,7 @@ spec:
                                 description: |-
                                   ASN is the AS number to use for the local end of the session.
                                   ASN and DynamicASN are mutually exclusive and one of them must be specified.
-                                format: int32
+                                format: int64
                                 maximum: 4294967295
                                 minimum: 0
                                 type: integer
@@ -1246,10 +1257,10 @@ spec:
                               disableMP:
                                 default: false
                                 description: |-
-                                  To set if we want to disable MP BGP that will separate IPv4 and IPv6 route exchanges into distinct BGP sessions.
+                                  DisableMP is no longer used and has no effect.
+                                  Use DualStackAddressFamily instead to enable the neighbor for both IPv4 and IPv6 address families.
 
-
-                                  Deprecated: DisableMP is deprecated in favor of dualStackAddressFamily.
+                                  Deprecated: This field is ignored. Use DualStackAddressFamily instead.
                                 type: boolean
                               dualStackAddressFamily:
                                 default: false
@@ -1299,6 +1310,18 @@ spec:
                                   KeepaliveTime is the requested BGP keepalive time, per RFC4271.
                                   Defaults to 60s.
                                 type: string
+                              localASN:
+                                description: |-
+                                  LocalASN allows advertising a different AS number to the peer using BGP's
+                                  local-as feature. When set, FRR will advertise this ASN to the peer
+                                  via "neighbor <peer> local-as <ASN> no-prepend replace-as", overriding
+                                  the router-level ASN for this specific session.
+                                  Note: this field is only applicable to eBGP sessions (where the peer ASN differs
+                                  from the router ASN). Setting it on an iBGP session is rejected.
+                                format: int64
+                                maximum: 4294967295
+                                minimum: 1
+                                type: integer
                               password:
                                 description: |-
                                   Password to be used for establishing the BGP session.
@@ -1553,7 +1576,72 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.3
+  name: frrk8sconfigurations.frrk8s.metallb.io
+spec:
+  group: frrk8s.metallb.io
+  names:
+    kind: FRRK8sConfiguration
+    listKind: FRRK8sConfigurationList
+    plural: frrk8sconfigurations
+    singular: frrk8sconfiguration
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          FRRK8sConfiguration holds the FRR Operator configuration with global
+          settings for the K8s and FRR.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: FRRK8sConfigurationSpec defines the desired state of FRRK8sConfiguration.
+            properties:
+              logLevel:
+                description: |-
+                  LogLevel sets the logging verbosity for the FRR-K8s components at runtime.
+                  When configured, this value overrides the defaults established by the --log-level CLI flag.
+                  Valid values are: all, debug, info, warn, error, none.
+                enum:
+                - all
+                - debug
+                - info
+                - warn
+                - error
+                - none
+                type: string
+            type: object
+          status:
+            description: FRRK8sConfigurationStatus defines the observed state of FRRK8sConfiguration.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: frrnodestates.frrk8s.metallb.io
 spec:
   group: frrk8s.metallb.io
@@ -2565,51 +2653,7 @@ rules:
   - frrk8s.metallb.io
   resources:
   - bgpsessionstates
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - frrk8s.metallb.io
-  resources:
-  - bgpsessionstates/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - frrk8s.metallb.io
-  resources:
   - frrconfigurations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - frrk8s.metallb.io
-  resources:
-  - frrconfigurations/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - frrk8s.metallb.io
-  resources:
-  - frrconfigurations/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - frrk8s.metallb.io
-  resources:
   - frrnodestates
   verbs:
   - create
@@ -2622,17 +2666,33 @@ rules:
 - apiGroups:
   - frrk8s.metallb.io
   resources:
+  - bgpsessionstates/status
+  - frrconfigurations/status
   - frrnodestates/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - frrk8s.metallb.io
+  resources:
+  - frrconfigurations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - frrk8s.metallb.io
+  resources:
+  - frrk8sconfigurations
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/component: frr-k8s
     app.kubernetes.io/created-by: frr-k8s
     app.kubernetes.io/instance: metrics-reader
     app.kubernetes.io/managed-by: kustomize
@@ -2649,7 +2709,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/component: frr-k8s
     app.kubernetes.io/created-by: frr-k8s
     app.kubernetes.io/instance: proxy-role
     app.kubernetes.io/managed-by: kustomize
@@ -2915,6 +2975,9 @@ roleRef:
   name: pod-lister
 subjects:
 - kind: ServiceAccount
+  name: controller
+  namespace: metallb-system
+- kind: ServiceAccount
   name: speaker
   namespace: metallb-system
 ---
@@ -2942,7 +3005,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/component: frr-k8s
     app.kubernetes.io/created-by: frr-k8s
     app.kubernetes.io/instance: proxy-rolebinding
     app.kubernetes.io/managed-by: kustomize
@@ -3111,7 +3174,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/component: frr-k8s
     app.kubernetes.io/created-by: frr-k8s
     app.kubernetes.io/instance: frr-k8s-metrics-service
     app.kubernetes.io/managed-by: kustomize
@@ -3172,7 +3235,7 @@ spec:
   template:
     metadata:
       annotations:
-        prometheus.io/port: "7472"
+        prometheus.io/port: "9120"
         prometheus.io/scrape: "true"
       labels:
         app: metallb
@@ -3180,12 +3243,15 @@ spec:
     spec:
       containers:
       - args:
-        - --port=7472
+        - --port=9120
         - --log-level=info
-        - --tls-min-version=VersionTLS12
         env:
         - name: METALLB_BGP_TYPE
           value: frr-k8s
+        - name: METALLB_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         - name: METALLB_ML_SECRET_NAME
           value: memberlist
         - name: METALLB_DEPLOYMENT
@@ -3194,24 +3260,26 @@ spec:
         livenessProbe:
           failureThreshold: 3
           httpGet:
-            path: /metrics
-            port: monitoring
+            host: 127.0.0.1
+            path: /healthz
+            port: 17472
           initialDelaySeconds: 10
           periodSeconds: 10
           successThreshold: 1
           timeoutSeconds: 1
         name: controller
         ports:
-        - containerPort: 7472
-          name: monitoring
+        - containerPort: 9120
+          name: metricshttps
         - containerPort: 9443
           name: webhook-server
           protocol: TCP
         readinessProbe:
           failureThreshold: 3
           httpGet:
-            path: /metrics
-            port: monitoring
+            host: 127.0.0.1
+            path: /readyz
+            port: 17472
           initialDelaySeconds: 10
           periodSeconds: 10
           successThreshold: 1
@@ -3244,7 +3312,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app.kubernetes.io/component: frr-k8s
+    app.kubernetes.io/component: statuscleaner
     app.kubernetes.io/created-by: frr-k8s
     app.kubernetes.io/instance: frr-k8s
     app.kubernetes.io/managed-by: kustomize
@@ -3263,6 +3331,7 @@ spec:
         kubectl.kubernetes.io/default-container: frr-k8s-webhook-server
       labels:
         app: frr-k8s-webhook-server
+        app.kubernetes.io/component: statuscleaner
         control-plane: statuscleaner
     spec:
       containers:
@@ -3276,7 +3345,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: quay.io/metallb/frr-k8s:v0.0.22
+        image: quay.io/metallb/frr-k8s:v0.0.25
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -3285,7 +3354,7 @@ spec:
             scheme: HTTPS
           initialDelaySeconds: 15
           periodSeconds: 20
-        name: frr-k8s-webhook-server
+        name: frr-k8s-statuscleaner
         ports:
         - containerPort: 19443
           name: webhook
@@ -3373,53 +3442,7 @@ spec:
                 - linux
       containers:
       - args:
-        - --secure-listen-address=0.0.0.0:9140
-        - --upstream=http://127.0.0.1:7572/
-        - --logtostderr=true
-        - --v=0
-        image: registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.13.1
-        name: kube-rbac-proxy
-        ports:
-        - containerPort: 9140
-          name: metricshttps
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 500m
-            memory: 128Mi
-          requests:
-            cpu: 5m
-            memory: 64Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-      - args:
-        - --secure-listen-address=0.0.0.0:9141
-        - --upstream=http://127.0.0.1:7573/
-        - --logtostderr=true
-        - --v=0
-        image: registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.13.1
-        name: kube-rbac-proxy-frr
-        ports:
-        - containerPort: 9141
-          name: frrmetricshttps
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 500m
-            memory: 128Mi
-          requests:
-            cpu: 5m
-            memory: 64Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-      - args:
-        - --metrics-bind-address=127.0.0.1:7572
+        - --metrics-bind-address=0.0.0.0:9140
         - --node-name=$(NODE_NAME)
         - --namespace=$(NAMESPACE)
         - --log-level=info
@@ -3438,24 +3461,24 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: quay.io/metallb/frr-k8s:v0.0.22
+        image: quay.io/metallb/frr-k8s:v0.0.25
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
             host: 127.0.0.1
-            path: /metrics
-            port: monitoring
+            path: /healthz
+            port: 7572
           initialDelaySeconds: 15
           periodSeconds: 20
-        name: frr-k8s
+        name: controller
         ports:
-        - containerPort: 7572
-          name: monitoring
+        - containerPort: 9140
+          name: metricshttps
         readinessProbe:
           httpGet:
             host: 127.0.0.1
-            path: /metrics
-            port: monitoring
+            path: /readyz
+            port: 7572
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
@@ -3481,13 +3504,14 @@ spec:
         env:
         - name: TINI_SUBREAPER
           value: "true"
-        image: quay.io/frrouting/frr:10.4.1
+        image: quay.io/frrouting/frr:10.4.3
         livenessProbe:
           failureThreshold: 3
           httpGet:
             host: 127.0.0.1
             path: /livez
-            port: 7573
+            port: 9141
+            scheme: HTTPS
           periodSeconds: 5
         name: frr
         securityContext:
@@ -3504,7 +3528,8 @@ spec:
           httpGet:
             host: 127.0.0.1
             path: /livez
-            port: 7573
+            port: 9141
+            scheme: HTTPS
           periodSeconds: 5
         volumeMounts:
         - mountPath: /var/run/frr
@@ -3516,13 +3541,15 @@ spec:
         - mountPath: /var/tmp/frr
           name: frr-tmp
       - args:
-        - --metrics-port=7573
-        - --metrics-bind-address=127.0.0.1
+        - --metrics-port=9141
+        - --metrics-bind-address=0.0.0.0
         command:
         - /etc/frr_metrics/frr-metrics
-        image: quay.io/frrouting/frr:10.4.1
+        image: quay.io/frrouting/frr:10.4.3
         name: frr-metrics
         ports:
+        - containerPort: 9141
+          name: frrmetricshttps
         - containerPort: 7573
           name: frr-metrics
         volumeMounts:
@@ -3536,6 +3563,7 @@ spec:
         - --node-name=$(NODE_NAME)
         - --namespace=$(NAMESPACE)
         - --pod-name=$(POD_NAME)
+        - --log-level=info
         command:
         - /etc/frr_status/frr-status
         env:
@@ -3551,7 +3579,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        image: quay.io/frrouting/frr:10.4.1
+        image: quay.io/frrouting/frr:10.4.3
         name: frr-status
         volumeMounts:
         - mountPath: /var/run/frr
@@ -3562,7 +3590,7 @@ spec:
           name: frr-status
       - command:
         - /etc/frr_reloader/frr-reloader.sh
-        image: quay.io/frrouting/frr:10.4.1
+        image: quay.io/frrouting/frr:10.4.3
         name: reloader
         volumeMounts:
         - mountPath: /var/run/frr
@@ -3577,7 +3605,7 @@ spec:
         - /bin/sh
         - -c
         - cp -rLf /tmp/frr/* /etc/frr/
-        image: quay.io/frrouting/frr:10.4.1
+        image: quay.io/frrouting/frr:10.4.3
         name: cp-frr-files
         securityContext:
           runAsGroup: 101
@@ -3591,7 +3619,7 @@ spec:
         - /bin/sh
         - -c
         - cp -f /frr-reloader.sh /etc/frr_reloader/
-        image: quay.io/metallb/frr-k8s:v0.0.22
+        image: quay.io/metallb/frr-k8s:v0.0.25
         name: cp-reloader
         volumeMounts:
         - mountPath: /etc/frr_reloader
@@ -3600,7 +3628,7 @@ spec:
         - /bin/sh
         - -c
         - cp -f /frr-metrics /etc/frr_metrics/
-        image: quay.io/metallb/frr-k8s:v0.0.22
+        image: quay.io/metallb/frr-k8s:v0.0.25
         name: cp-metrics
         volumeMounts:
         - mountPath: /etc/frr_metrics
@@ -3609,7 +3637,7 @@ spec:
         - /bin/sh
         - -c
         - cp -f /frr-status /etc/frr_status/
-        image: quay.io/metallb/frr-k8s:v0.0.22
+        image: quay.io/metallb/frr-k8s:v0.0.25
         name: cp-frr-status
         volumeMounts:
         - mountPath: /etc/frr_status
@@ -3659,7 +3687,7 @@ spec:
   template:
     metadata:
       annotations:
-        prometheus.io/port: "7472"
+        prometheus.io/port: "9120"
         prometheus.io/scrape: "true"
       labels:
         app: metallb
@@ -3667,7 +3695,7 @@ spec:
     spec:
       containers:
       - args:
-        - --port=7472
+        - --port=9120
         - --log-level=info
         env:
         - name: METALLB_BGP_TYPE
@@ -3696,16 +3724,17 @@ spec:
         livenessProbe:
           failureThreshold: 3
           httpGet:
-            path: /metrics
-            port: monitoring
+            host: 127.0.0.1
+            path: /healthz
+            port: 17472
           initialDelaySeconds: 10
           periodSeconds: 10
           successThreshold: 1
           timeoutSeconds: 1
         name: speaker
         ports:
-        - containerPort: 7472
-          name: monitoring
+        - containerPort: 9120
+          name: metricshttps
         - containerPort: 7946
           name: memberlist-tcp
         - containerPort: 7946
@@ -3714,8 +3743,9 @@ spec:
         readinessProbe:
           failureThreshold: 3
           httpGet:
-            path: /metrics
-            port: monitoring
+            host: 127.0.0.1
+            path: /readyz
+            port: 17472
           initialDelaySeconds: 10
           periodSeconds: 10
           successThreshold: 1
@@ -3734,6 +3764,9 @@ spec:
           readOnly: true
         - mountPath: /etc/metallb
           name: metallb-excludel2
+          readOnly: true
+        - mountPath: /etc/metallb/memberlist
+          name: memberlist-config
           readOnly: true
       hostNetwork: true
       nodeSelector:
@@ -3756,6 +3789,10 @@ spec:
           defaultMode: 256
           name: metallb-excludel2
         name: metallb-excludel2
+      - configMap:
+          name: metallb-memberlist-config
+          optional: true
+        name: memberlist-config
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
