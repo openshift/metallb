@@ -59,7 +59,7 @@ type RawConfig struct {
 type BGPConfig struct {
 	// Routers is the list of routers we want FRR to configure (one per VRF).
 	// +optional
-	Routers []Router `json:"routers"`
+	Routers []Router `json:"routers,omitempty"`
 	// BFDProfiles is the list of bfd profiles to be used when configuring the neighbors.
 	// +optional
 	BFDProfiles []BFDProfile `json:"bfdProfiles,omitempty"`
@@ -70,6 +70,7 @@ type Router struct {
 	// ASN is the AS number to use for the local end of the session.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=4294967295
+	// +kubebuilder:validation:Format=int64
 	ASN uint32 `json:"asn"`
 	// ID is the BGP router ID
 	// +optional
@@ -102,6 +103,7 @@ type Neighbor struct {
 	// ASN and DynamicASN are mutually exclusive and one of them must be specified.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=4294967295
+	// +kubebuilder:validation:Format=int64
 	// +optional
 	ASN uint32 `json:"asn,omitempty"`
 
@@ -195,9 +197,10 @@ type Neighbor struct {
 	// +optional
 	ToReceive Receive `json:"toReceive,omitempty"`
 
-	// To set if we want to disable MP BGP that will separate IPv4 and IPv6 route exchanges into distinct BGP sessions.
+	// DisableMP is no longer used and has no effect.
+	// Use DualStackAddressFamily instead to enable the neighbor for both IPv4 and IPv6 address families.
 	//
-	// Deprecated: DisableMP is deprecated in favor of dualStackAddressFamily.
+	// Deprecated: This field is ignored. Use DualStackAddressFamily instead.
 	// +optional
 	// +kubebuilder:default:=false
 	DisableMP bool `json:"disableMP,omitempty"`
@@ -207,6 +210,18 @@ type Neighbor struct {
 	// +optional
 	// +kubebuilder:default:=false
 	DualStackAddressFamily bool `json:"dualStackAddressFamily,omitempty"`
+
+	// LocalASN allows advertising a different AS number to the peer using BGP's
+	// local-as feature. When set, FRR will advertise this ASN to the peer
+	// via "neighbor <peer> local-as <ASN> no-prepend replace-as", overriding
+	// the router-level ASN for this specific session.
+	// Note: this field is only applicable to eBGP sessions (where the peer ASN differs
+	// from the router ASN). Setting it on an iBGP session is rejected.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=4294967295
+	// +kubebuilder:validation:Format=int64
+	LocalASN uint32 `json:"localASN,omitempty"`
 }
 
 // Advertise represents a list of prefixes to advertise to the given neighbor.

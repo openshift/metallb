@@ -561,15 +561,10 @@ apiServer:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             frr_k8s_manifest_path = f.name
             result = run(
-                "curl -sL https://raw.githubusercontent.com/metallb/frr-k8s/v0.0.22/config/all-in-one/frr-k8s.yaml",
+                "curl -sL https://raw.githubusercontent.com/metallb/frr-k8s/v0.0.25/config/all-in-one/frr-k8s.yaml",
                 hide=True,
             )
-            f.write(
-                result.stdout.replace(
-                    "gcr.io/kubebuilder/kube-rbac-proxy",
-                    "registry.k8s.io/kubebuilder/kube-rbac-proxy",
-                )
-            )
+            f.write(result.stdout)
         run(
             "{} apply -f {}".format(kubectl_path, frr_k8s_manifest_path),
             echo=True,
@@ -768,7 +763,7 @@ def bgp_dev_env(ip_family, frr_volume_dir):
     )
     run(
         "docker run -d --privileged --network kind --rm --ulimit core=-1 --name frr --volume %s:/etc/frr "
-        "quay.io/frrouting/frr:10.5.1" % frr_volume_dir,
+        "quay.io/frrouting/frr:10.5.3" % frr_volume_dir,
         echo=True,
     )
 

@@ -80,7 +80,9 @@ func Create(configs map[string]Config) ([]*FRR, error) {
 				err = wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
 					daemons, err := frr.Daemons(c)
 					if err != nil {
-						return false, err
+						// vtysh can fail while watchfrr is still bringing daemons up; keep polling
+						// instead of aborting the whole wait on the first exec error.
+						return false, nil
 					}
 					for _, d := range daemons {
 						delete(toFind, d)
@@ -130,7 +132,7 @@ func PairWithNodes(cs clientset.Interface, c *FRR, ipFamily ipfamily.Family, mod
 		return err
 	}
 
-	err = c.UpdateBGPConfigFile(bgpConfig)
+	err = c.UpdateConfigFile(bgpConfig)
 	if err != nil {
 		return err
 	}
@@ -264,16 +266,16 @@ func (c *FRR) updateIPS() (err error) {
 	return nil
 }
 
-// Updating the BGP config file.
-func (c *FRR) UpdateBGPConfigFile(bgpConfig string) error {
+// Updating the FRR config file.
+func (c *FRR) UpdateConfigFile(bgpConfig string) error {
 	err := frrconfig.SetBGPConfig(c.configDir, bgpConfig)
 	if err != nil {
-		return errors.Join(err, errors.New("failed to update BGP config file"))
+		return errors.Join(err, errors.New("failed to update FRR config file"))
 	}
 
 	err = reloadFRRConfig(consts.BGPConfigFile, c)
 	if err != nil {
-		return errors.Join(err, errors.New("failed to update BGP config file"))
+		return errors.Join(err, errors.New("failed to update FRR config file"))
 
 	}
 

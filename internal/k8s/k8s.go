@@ -9,16 +9,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/pprof"
 	"os"
-	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -33,7 +31,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	frrv1beta1 "github.com/metallb/frr-k8s/api/v1beta1"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	discovery "k8s.io/api/discovery/v1"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -100,17 +97,16 @@ type Config struct {
 	ProcessName         string
 	NodeName            string
 	PodName             string
-	MetricsHost         string
 	MetricsPort         int
-	EnablePprof         bool
+	PprofBindAddress    string
 	ReadEndpoints       bool
 	Logger              log.Logger
 	Namespace           string
 	ValidateConfig      config.Validate
 	EnableWebhook       bool
-	WebHookMinVersion   uint16
-	WebHookCipherSuites []uint16
+	TLSOpt              func(*tls.Config)
 	DisableCertRotation bool
+	MetricsCertDir      string
 	WebhookSecretName   string
 	CertDir             string
 	CertServiceName     string
@@ -149,17 +145,25 @@ func New(cfg *Config) (*Client, error) {
 		&corev1.ConfigMap{}:                namespaceSelector,
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:         scheme,
-		LeaderElection: false,
-		Cache: cache.Options{
-			ByObject: objectsPerNamespace,
-		},
-		WebhookServer: webhookServer(cfg),
-		Metrics: metricsserver.Options{
-			BindAddress: "0", // Disable metrics endpoint of controller manager
-		},
-	})
+	metricsOpts := metricsserver.Options{
+		BindAddress:    fmt.Sprintf("0.0.0.0:%d", cfg.MetricsPort),
+		SecureServing:  true,
+		FilterProvider: filters.WithAuthenticationAndAuthorization,
+		CertDir:        cfg.MetricsCertDir,
+		TLSOpts:        []func(*tls.Config){cfg.TLSOpt},
+	}
+
+	mgrOpts := ctrl.Options{
+		Scheme:                 scheme,
+		LeaderElection:         false,
+		Cache:                  cache.Options{ByObject: objectsPerNamespace},
+		WebhookServer:          webhookServer(cfg),
+		Metrics:                metricsOpts,
+		HealthProbeBindAddress: "127.0.0.1:17472",
+		PprofBindAddress:       cfg.PprofBindAddress,
+	}
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), mgrOpts)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -185,6 +189,12 @@ func New(cfg *Config) (*Client, error) {
 		ForceSync:      reload,
 	}
 
+	selfPod, err := clientset.CoreV1().Pods(cfg.Namespace).Get(context.TODO(), cfg.PodName, metav1.GetOptions{})
+	if err != nil {
+		level.Error(cfg.Logger).Log("op", "startup", "error", err, "msg", "unable to get own pod for owner references")
+		return nil, err
+	}
+
 	configStateName := "controller"
 	configStateLabels := map[string]string{
 		"metallb.io/component-type": "controller",
@@ -208,6 +218,7 @@ func New(cfg *Config) (*Client, error) {
 			ValidateConfig:  cfg.ValidateConfig,
 			Handler:         cfg.ConfigHandler,
 			ForceReload:     reload,
+			NodeName:        cfg.NodeName,
 		}).SetupWithManager(mgr); err != nil {
 			level.Error(c.logger).Log("error", err, "unable to create controller", "config")
 			return nil, errors.Join(err, errors.New("unable to create controller for config"))
@@ -299,6 +310,7 @@ func New(cfg *Config) (*Client, error) {
 		ConfigStateLabels: configStateLabels,
 		Logger:            cfg.Logger,
 		Scheme:            mgr.GetScheme(),
+		OwnerPod:          selfPod.DeepCopy(),
 	}
 	if err := cc.SetupWithManager(mgr); err != nil {
 		level.Error(c.logger).Log("error", err, "unable to create controller", "configurationstatus")
@@ -322,11 +334,6 @@ func New(cfg *Config) (*Client, error) {
 
 	// metallb controller doesn't need this reconciler
 	if cfg.Layer2StatusChan != nil {
-		selfPod, err := clientset.CoreV1().Pods(cfg.Namespace).Get(context.TODO(), cfg.PodName, metav1.GetOptions{})
-		if err != nil {
-			level.Error(c.logger).Log("unable to get speaker pod itself", err)
-			return nil, err
-		}
 		if err = (&controllers.Layer2StatusReconciler{
 			Client:        mgr.GetClient(),
 			Logger:        cfg.Logger,
@@ -341,11 +348,6 @@ func New(cfg *Config) (*Client, error) {
 	}
 
 	if cfg.BGPStatusChan != nil {
-		selfPod, err := clientset.CoreV1().Pods(cfg.Namespace).Get(context.TODO(), cfg.PodName, metav1.GetOptions{})
-		if err != nil {
-			level.Error(c.logger).Log("unable to get speaker pod itself", err)
-			return nil, err
-		}
 		if err = (&controllers.ServiceBGPStatusReconciler{
 			Client:        mgr.GetClient(),
 			Logger:        cfg.Logger,
@@ -359,10 +361,15 @@ func New(cfg *Config) (*Client, error) {
 		}
 	}
 
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return nil, errors.Join(err, errors.New("failed to set up health check"))
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return nil, errors.Join(err, errors.New("failed to set up ready check"))
+	}
+
 	startListeners := make(chan struct{})
 	go func(l log.Logger) {
-		// We start the webhooks and the metric at the same time so the readiness probe will
-		// return success only when we are able to serve webhook requests.
 		<-startListeners
 		if cfg.EnableWebhook {
 			err := enableWebhook(c.mgr, cfg.ValidateConfig, cfg.Namespace, cfg.Logger)
@@ -370,39 +377,14 @@ func New(cfg *Config) (*Client, error) {
 				level.Error(l).Log("error", err, "unable to create", "webhooks")
 			}
 		}
-
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-
-		if cfg.EnablePprof {
-			mux.HandleFunc("/debug/pprof/", pprof.Index)
-			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		}
-
-		server := &http.Server{
-			Addr:              net.JoinHostPort(cfg.MetricsHost, fmt.Sprint(cfg.MetricsPort)),
-			Handler:           mux,
-			ReadHeaderTimeout: 3 * time.Second,
-		}
-
-		err := server.ListenAndServe()
-		if err != nil {
-			level.Error(l).Log("op", "listenAndServe", "err", err, "msg", "cannot listen and serve", "host", cfg.MetricsHost, "port", cfg.MetricsPort)
-		}
 	}(c.logger)
 
-	// The cert rotator will notify when we can start the webhook
-	// and the metric endpoint
 	if cfg.EnableWebhook && !cfg.DisableCertRotation {
 		err = enableCertRotation(startListeners, cfg, mgr)
 		if err != nil {
 			return nil, errors.Join(err, errors.New("failed to enable cert rotation"))
 		}
 	} else {
-		// otherwise we can go on and start them
 		close(startListeners)
 	}
 
@@ -515,13 +497,8 @@ func webhookServer(cfg *Config) webhook.Server {
 		c.NextProtos = []string{"http/1.1"}
 	}
 
-	tlsSecurity := func(tlsConfig *tls.Config) {
-		tlsConfig.MinVersion = cfg.WebHookMinVersion
-		tlsConfig.CipherSuites = cfg.WebHookCipherSuites
-	}
-
 	webhookServerOptions := webhook.Options{
-		TLSOpts: []func(config *tls.Config){disableHTTP2, tlsSecurity},
+		TLSOpts: []func(*tls.Config){disableHTTP2, cfg.TLSOpt},
 		Port:    9443,
 	}
 

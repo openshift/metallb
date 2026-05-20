@@ -64,6 +64,7 @@ const (
 	v6PoolAddresses       = "fc00:f853:0ccd:e799::/124"
 	CommunityNoAdv        = "65535:65282" // 0xFFFFFF02: NO_ADVERTISE
 	CommunityGracefulShut = "65535:0"     // GRACEFUL_SHUTDOWN
+	CustomCommunity       = "123:456"     // custom community for BGP advertisement update tests
 	SpeakerContainerName  = "speaker"
 
 	GracefulRestartEnabled  = true
@@ -114,7 +115,7 @@ var _ = ginkgo.Describe("BGP", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		for _, c := range FRRContainers {
-			err := c.UpdateBGPConfigFile(frrconfig.Empty)
+			err := c.UpdateConfigFile(frrconfig.Empty)
 			Expect(err).NotTo(HaveOccurred())
 		}
 
@@ -571,6 +572,46 @@ var _ = ginkgo.Describe("BGP", func() {
 	},
 		ginkgo.Entry("IPV4", ipfamily.IPv4),
 		ginkgo.Entry("IPV6", ipfamily.IPv6))
+
+	ginkgo.DescribeTable("FRR configure peers with localASN and validate session uses the local-as override", func(ipFamily ipfamily.Family) {
+		// localASN is a different ASN from metalLBASN. MetalLB will advertise
+		// this value to the peer via "neighbor <peer> local-as <localASN>
+		// no-prepend replace-as", so the external FRR container must expect
+		// localASN as MetalLB's remote-as for the session to come up.
+		localASN := uint32(64520)
+
+		ginkgo.By("configure peer with localASN")
+
+		resources := config.Resources{
+			Peers: metallb.PeersForContainers(FRRContainers, ipFamily, func(p *metallbv1beta2.BGPPeer) {
+				p.Spec.LocalASN = localASN
+			}),
+		}
+
+		err := ConfigUpdater.Update(resources)
+		Expect(err).NotTo(HaveOccurred())
+
+		ginkgo.By("pairing FRR containers expecting localASN as MetalLB's remote-as")
+		for _, c := range FRRContainers {
+			err = frrcontainer.PairWithNodes(cs, c, ipFamily, func(c *frrcontainer.FRR) {
+				c.NeighborConfig.ASN = localASN
+			})
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		ginkgo.By("validating sessions are established and peers report localASN as the remote AS")
+		for _, c := range FRRContainers {
+			validateFRRPeeredWithAllNodes(cs, c, ipFamily)
+			neighbors, err := frr.NeighborsInfo(c)
+			Expect(err).NotTo(HaveOccurred())
+			for _, n := range neighbors {
+				Expect(n.RemoteAS).To(Equal(fmt.Sprintf("%d", localASN)),
+					"expected MetalLB to advertise localASN %d to the peer", localASN)
+			}
+		}
+	},
+		ginkgo.Entry("FRR-MODE IPV4", ipfamily.IPv4),
+		ginkgo.Entry("FRR-MODE IPV6", ipfamily.IPv6))
 
 	ginkgo.DescribeTable("validate external containers are paired with nodes", func(ipFamily ipfamily.Family) {
 		ginkgo.By("configure peer")
@@ -1276,7 +1317,249 @@ var _ = ginkgo.Describe("BGP", func() {
 				},
 				ipfamily.IPv6,
 				[]metallbv1beta1.Community{}))
+
+		ginkgo.It("IPV4 - overlapping bgp advertisements union communities for the same prefix", func() {
+				const (
+					communityA = "65000:100"
+					communityB = "65000:200"
+				)
+				ipFamily := ipfamily.IPv4
+				poolAddresses := []string{v4PoolAddresses}
+
+				resources := config.Resources{
+					Pools: []metallbv1beta1.IPAddressPool{
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "bgp-overlap-pool"},
+							Spec: metallbv1beta1.IPAddressPoolSpec{
+								Addresses: poolAddresses,
+							},
+						},
+					},
+					Peers: metallb.PeersForContainers(FRRContainers, ipFamily),
+					BGPAdvs: []metallbv1beta1.BGPAdvertisement{
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "overlap-adv-a"},
+							Spec: metallbv1beta1.BGPAdvertisementSpec{
+								Communities:    []string{communityA},
+								IPAddressPools: []string{"bgp-overlap-pool"},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "overlap-adv-b"},
+							Spec: metallbv1beta1.BGPAdvertisementSpec{
+								Communities:    []string{communityB},
+								IPAddressPools: []string{"bgp-overlap-pool"},
+							},
+						},
+					},
+				}
+
+				for _, c := range FRRContainers {
+					err := frrcontainer.PairWithNodes(cs, c, ipFamily)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				err := ConfigUpdater.Update(resources)
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, c := range FRRContainers {
+					validateFRRPeeredWithAllNodes(cs, c, ipFamily)
+				}
+
+				serviceIP, err := config.GetIPFromRangeByIndex(poolAddresses[0], 0)
+				Expect(err).NotTo(HaveOccurred())
+
+				svc, jig := testservice.CreateWithBackend(cs, testNamespace, "svc-ovlp-comm",
+					func(s *corev1.Service) {
+						s.Spec.LoadBalancerIP = serviceIP
+					},
+					testservice.TrafficPolicyCluster)
+				Expect(svc).NotTo(BeNil())
+				Expect(jig).NotTo(BeNil())
+				defer testservice.Delete(cs, svc)
+
+				allNodes, err := cs.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, c := range FRRContainers {
+					validateService(svc, allNodes.Items, c)
+				}
+
+				for _, c := range FRRContainers {
+					Eventually(func() error {
+						routesA, err := frr.RoutesForCommunity(c, communityA, ipFamily)
+						if err != nil {
+							return err
+						}
+						if _, ok := routesA[serviceIP]; !ok {
+							return fmt.Errorf("%s route not found for community %s on %s", serviceIP, communityA, c.Name)
+						}
+
+						routesB, err := frr.RoutesForCommunity(c, communityB, ipFamily)
+						if err != nil {
+							return err
+						}
+						if _, ok := routesB[serviceIP]; !ok {
+							return fmt.Errorf("%s route not found for community %s on %s", serviceIP, communityB, c.Name)
+						}
+						return nil
+					}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+				}
+		})
 	})
+
+	ginkgo.DescribeTable("BGP advertisement updates of communities and localpref and aggregation length", func(pairingIPFamily ipfamily.Family, poolAddresses []string, aggLen int32) {
+		bgpAdv := metallbv1beta1.BGPAdvertisement{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "adv-updates",
+				Namespace: ConfigUpdater.Namespace(),
+			},
+			Spec: metallbv1beta1.BGPAdvertisementSpec{
+				Communities:    []string{CommunityNoAdv},
+				LocalPref:      200,
+				IPAddressPools: []string{"bgp-test"},
+			},
+		}
+
+		resources := config.Resources{
+			Pools: []metallbv1beta1.IPAddressPool{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "bgp-test"},
+					Spec: metallbv1beta1.IPAddressPoolSpec{
+						Addresses: poolAddresses,
+					},
+				},
+			},
+			Peers:   metallb.PeersForContainers(FRRContainers, pairingIPFamily),
+			BGPAdvs: []metallbv1beta1.BGPAdvertisement{bgpAdv},
+		}
+
+		for _, c := range FRRContainers {
+			err := frrcontainer.PairWithNodes(cs, c, pairingIPFamily)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		err := ConfigUpdater.Update(resources)
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, c := range FRRContainers {
+			validateFRRPeeredWithAllNodes(cs, c, pairingIPFamily)
+		}
+
+		serviceIP, err := config.GetIPFromRangeByIndex(poolAddresses[0], 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		svc, _ := testservice.CreateWithBackend(cs, testNamespace, "bgp-adv-updates-svc", func(svc *corev1.Service) {
+			svc.Spec.LoadBalancerIP = serviceIP
+		}, testservice.TrafficPolicyCluster)
+		defer testservice.Delete(cs, svc)
+
+		allNodes, err := cs.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		ginkgo.By("Validating BGP route prefix")
+		for _, c := range FRRContainers {
+			validateService(svc, allNodes.Items, c)
+		}
+
+		ginkgo.By("Validate BGP Community is received on the FRR containers")
+		for _, c := range FRRContainers {
+			Eventually(func() (map[string]frr.Route, error) {
+				return frr.RoutesForCommunity(c, CommunityNoAdv, pairingIPFamily)
+			}, time.Minute, time.Second).Should(
+				HaveKey(serviceIP),
+				"BGP routes should contain service IP for community %s",
+				CommunityNoAdv,
+			)
+		}
+
+		ginkgo.By("Validate BGP Local Preference received on FRR containers")
+		for _, c := range FRRContainers {
+			if strings.Contains(c.Name, "ibgp") {
+				Eventually(func() (uint32, error) {
+					return frr.LocalPrefForPrefix(c, serviceIP, pairingIPFamily)
+				}, time.Minute, time.Second).Should(Equal(uint32(200)))
+			}
+		}
+
+		ginkgo.By("Update BGP Advertisements")
+		err = ConfigUpdater.Client().Get(context.TODO(), types.NamespacedName{Namespace: bgpAdv.Namespace, Name: bgpAdv.Name}, &bgpAdv)
+		Expect(err).NotTo(HaveOccurred())
+
+		bgpAdv.Spec.LocalPref = 300
+		bgpAdv.Spec.Communities = []string{CustomCommunity}
+
+		var subnet *net.IPNet
+		bits := 32
+		if pairingIPFamily == ipfamily.IPv6 {
+			bits = 128
+			bgpAdv.Spec.AggregationLengthV6 = ptr.To(aggLen)
+		} else {
+			bgpAdv.Spec.AggregationLength = ptr.To(aggLen)
+		}
+
+		err = ConfigUpdater.Client().Update(context.TODO(), &bgpAdv)
+		Expect(err).NotTo(HaveOccurred())
+
+		ginkgo.By("Validating updated BGP route prefix (aggregated)")
+		ip := net.ParseIP(serviceIP)
+		Expect(ip).NotTo(BeNil())
+
+		subnet = &net.IPNet{IP: ip.Mask(net.CIDRMask(int(aggLen), bits)), Mask: net.CIDRMask(int(aggLen), bits)}
+
+		// ParseRoutes indexes maps by destination IP string (see frr.ParseRoutes), not full CIDR.
+		aggregatedRouteKey := subnet.IP.String()
+		routeHasAggregationLength := func(routes map[string]frr.Route, key string) error {
+			r, ok := routes[key]
+			if !ok {
+				return fmt.Errorf("no route for key %q", key)
+			}
+			if r.Destination == nil {
+				return fmt.Errorf("route %q has nil Destination", key)
+			}
+			ones, _ := r.Destination.Mask.Size()
+			if ones != int(aggLen) {
+				return fmt.Errorf("route %q: want /%d advertised prefix, got /%d (%s)", key, aggLen, ones, r.Destination.String())
+			}
+			return nil
+		}
+		for _, c := range FRRContainers {
+			Eventually(func() error {
+				routes, err := frr.RoutesForFamily(c, pairingIPFamily)
+				if err != nil {
+					return err
+				}
+				return routeHasAggregationLength(routes, aggregatedRouteKey)
+			}, time.Minute, time.Second).Should(Succeed())
+		}
+
+		ginkgo.By("Validate BGP Community received on FRR containers")
+		for _, c := range FRRContainers {
+			Eventually(func() error {
+				routes, err := frr.RoutesForCommunity(c, CustomCommunity, pairingIPFamily)
+				if err != nil {
+					return err
+				}
+				return routeHasAggregationLength(routes, aggregatedRouteKey)
+			}, time.Minute, time.Second).Should(
+				Succeed(),
+				"BGP routes should contain aggregated /%d prefix for community %s",
+				aggLen,
+				CustomCommunity,
+			)
+		}
+
+		ginkgo.By("Validate BGP Local Preference on FRR containers")
+		for _, c := range FRRContainers {
+			if strings.Contains(c.Name, "ibgp") {
+				Eventually(func() (uint32, error) {
+					return frr.LocalPrefForPrefix(c, aggregatedRouteKey, pairingIPFamily)
+				}, time.Minute, time.Second).Should(Equal(uint32(300)))
+			}
+		}
+	},
+		ginkgo.Entry("IPV4", ipfamily.IPv4, []string{v4PoolAddresses}, int32(24)),
+		ginkgo.Entry("IPV6", ipfamily.IPv6, []string{v6PoolAddresses}, int32(124)))
 
 	ginkgo.Context("MetalLB FRR rejects", func() {
 		ginkgo.DescribeTable("any routes advertised by any neighbor", func(addressesRange, toInject string, pairingIPFamily ipfamily.Family) {
@@ -1429,7 +1712,6 @@ var _ = ginkgo.Describe("BGP", func() {
 
 				routers := map[string]frrk8sv1beta1.Router{}
 				for _, p := range resources.Peers {
-					p := p
 					r := routers[p.Spec.VRFName]
 					r.ASN = p.Spec.MyASN
 					r.VRF = p.Spec.VRFName
@@ -1698,7 +1980,7 @@ var _ = ginkgo.Describe("BGP", func() {
 						neighborFamily := ipfamily.ForAddress(net.ParseIP(neighbor.ID))
 						for _, family := range neighbor.AddressFamilies {
 							if !strings.Contains(family, string(neighborFamily)) {
-								return fmt.Errorf("expected %s neigbour to contain only %s families but contains %s", neighbor.ID, neighborFamily, family)
+								return fmt.Errorf("expected %s neighbour to contain only %s families but contains %s", neighbor.ID, neighborFamily, family)
 							}
 						}
 					}
@@ -1706,6 +1988,177 @@ var _ = ginkgo.Describe("BGP", func() {
 				}, 2*time.Minute, time.Second).ShouldNot(HaveOccurred())
 			}
 
+		})
+		ginkgo.It("IPV4 BGP Timer Update", func() {
+			initialHoldTime := 180 * time.Second
+			initialKeepaliveTime := 60 * time.Second
+			updatedHoldTime := 30 * time.Second
+			updatedKeepaliveTime := 10 * time.Second
+
+			resources := config.Resources{
+				Pools: []metallbv1beta1.IPAddressPool{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "bgp-test",
+						},
+						Spec: metallbv1beta1.IPAddressPoolSpec{
+							Addresses: []string{v4PoolAddresses},
+						},
+					},
+				},
+				Peers: metallb.PeersForContainers(FRRContainers, ipfamily.IPv4, func(p *metallbv1beta2.BGPPeer) {
+					p.Spec.HoldTime = &metav1.Duration{Duration: initialHoldTime}
+					p.Spec.KeepaliveTime = &metav1.Duration{Duration: initialKeepaliveTime}
+				}),
+				BGPAdvs: []metallbv1beta1.BGPAdvertisement{emptyBGPAdvertisement},
+			}
+
+			for _, c := range FRRContainers {
+				err := frrcontainer.PairWithNodes(cs, c, ipfamily.IPv4)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			err := ConfigUpdater.Update(resources)
+			Expect(err).NotTo(HaveOccurred())
+
+			ginkgo.By("Verify initial BGP timers in speaker pods")
+			speakerPods, err := metallb.SpeakerPods(cs)
+			Expect(err).NotTo(HaveOccurred())
+
+			initialHoldMsecs := int(initialHoldTime.Milliseconds())
+			initialKeepaliveMsecs := int(initialKeepaliveTime.Milliseconds())
+			expectSpeakerConfiguredTimers := func(pods []*corev1.Pod, holdMs, keepaliveMs int) {
+				for _, pod := range pods {
+					podExecutor, err := FRRProvider.FRRExecutorFor(pod.Namespace, pod.Name)
+					Expect(err).NotTo(HaveOccurred())
+					Eventually(func() error {
+						neighbors, err := frr.NeighborsInfo(podExecutor)
+						if err != nil {
+							return err
+						}
+						if len(neighbors) == 0 {
+							return fmt.Errorf("expected at least 1 BGP neighbor on speaker, got 0")
+						}
+						for _, n := range neighbors {
+							if n.ConfiguredHoldTime != holdMs {
+								return fmt.Errorf("neighbor %s: expected configured hold time %d ms, got %d ms",
+									n.ID, holdMs, n.ConfiguredHoldTime)
+							}
+							if n.ConfiguredKeepAliveTime != keepaliveMs {
+								return fmt.Errorf("neighbor %s: expected configured keepalive %d ms, got %d ms",
+									n.ID, keepaliveMs, n.ConfiguredKeepAliveTime)
+							}
+						}
+						return nil
+					}, 2*time.Minute, time.Second).ShouldNot(HaveOccurred())
+				}
+			}
+			expectSpeakerConfiguredTimers(speakerPods, initialHoldMsecs, initialKeepaliveMsecs)
+
+			ginkgo.By("Update BGP timers")
+			resources.Peers = metallb.PeersForContainers(FRRContainers, ipfamily.IPv4, func(p *metallbv1beta2.BGPPeer) {
+				p.Spec.HoldTime = &metav1.Duration{Duration: updatedHoldTime}
+				p.Spec.KeepaliveTime = &metav1.Duration{Duration: updatedKeepaliveTime}
+			})
+			err = ConfigUpdater.Update(resources)
+			Expect(err).NotTo(HaveOccurred())
+
+			ginkgo.By("Verify updated timers in speaker pods")
+			expectSpeakerConfiguredTimers(speakerPods, int(updatedHoldTime.Milliseconds()), int(updatedKeepaliveTime.Milliseconds()))
+
+			ginkgo.By("Reset BGP connection on FRR containers to re-establish with new timers")
+			for _, c := range FRRContainers {
+				_, err := c.Exec("vtysh", "-c", "clear bgp *")
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			ginkgo.By("Verify BGP timers on FRR containers after re-establishment")
+			expectedHoldTimeMsecs := int(updatedHoldTime.Milliseconds())
+			expectedKeepaliveMsecs := int(updatedKeepaliveTime.Milliseconds())
+
+			for _, c := range FRRContainers {
+				Eventually(func() error {
+					neighbors, err := frr.NeighborsInfo(c)
+					if err != nil {
+						return err
+					}
+					if len(neighbors) == 0 {
+						return fmt.Errorf("expected at least 1 neighbor, got 0")
+					}
+					for _, neighbor := range neighbors {
+						if neighbor.NegotiatedHoldTime != expectedHoldTimeMsecs {
+							return fmt.Errorf("neighbor %s: expected negotiated hold time %d ms, got %d ms",
+								neighbor.ID, expectedHoldTimeMsecs, neighbor.NegotiatedHoldTime)
+						}
+						if neighbor.NegotiatedKeepAliveInterval != expectedKeepaliveMsecs {
+							return fmt.Errorf("neighbor %s: expected negotiated keepalive %d ms, got %d ms",
+								neighbor.ID, expectedKeepaliveMsecs, neighbor.NegotiatedKeepAliveInterval)
+						}
+					}
+					return nil
+				}, 3*time.Minute, time.Second).ShouldNot(HaveOccurred())
+			}
+		})
+		ginkgo.Context("IPV4 BGP connect time", func() {
+			expectConnectTimeOnSpeakers := func(speakerPods []*corev1.Pod, expectedSeconds int) {
+				for _, pod := range speakerPods {
+					podExec, err := FRRProvider.FRRExecutorFor(pod.Namespace, pod.Name)
+					Expect(err).NotTo(HaveOccurred())
+					Eventually(func() error {
+						neighbors, err := frr.NeighborsInfo(podExec)
+						if err != nil {
+							return err
+						}
+						if len(neighbors) == 0 {
+							return fmt.Errorf("expected at least 1 neighbor, got %d", len(neighbors))
+						}
+						for _, neighbor := range neighbors {
+							if neighbor.ConfiguredConnectTime != expectedSeconds {
+								return fmt.Errorf("expected connect time to be %d, got %d", expectedSeconds, neighbor.ConfiguredConnectTime)
+							}
+						}
+						return nil
+					}, 2*time.Minute, time.Second).ShouldNot(HaveOccurred())
+				}
+			}
+
+			ginkgo.It("IPV4 retry timer reconnects to neighbor within connect time after BGP reset", func() {
+				connectTime := 10 * time.Second
+				resources := config.Resources{
+					Peers: metallb.PeersForContainers(FRRContainers, ipfamily.IPv4, func(p *metallbv1beta2.BGPPeer) {
+						p.Spec.ConnectTime = ptr.To(metav1.Duration{Duration: connectTime})
+					}),
+				}
+				err := ConfigUpdater.Update(resources)
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, c := range FRRContainers {
+					err := frrcontainer.PairWithNodes(cs, c, ipfamily.IPv4)
+					Expect(err).NotTo(HaveOccurred())
+				}
+				for _, c := range FRRContainers {
+					validateFRRPeeredWithAllNodes(cs, c, ipfamily.IPv4)
+				}
+
+				speakerPods, err := metallb.SpeakerPods(cs)
+				Expect(err).NotTo(HaveOccurred())
+				expectConnectTimeOnSpeakers(speakerPods, int(connectTime.Seconds()))
+
+				ginkgo.By("Resetting BGP session from external FRR container")
+				_, err = FRRContainers[0].Exec("vtysh", "-c", "clear bgp *")
+				Expect(err).NotTo(HaveOccurred())
+
+				ginkgo.By("Verifying BGP session re-establishes within connect time")
+				allNodes, err := cs.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(func() error {
+					neighbors, err := frr.NeighborsInfo(FRRContainers[0])
+					if err != nil {
+						return err
+					}
+					return frr.NeighborsMatchNodes(allNodes.Items, neighbors, ipfamily.IPv4, FRRContainers[0].RouterConfig.VRF)
+				}, 2*connectTime, time.Second).ShouldNot(HaveOccurred())
+			})
 		})
 	})
 	ginkgo.DescribeTable("A service of protocol load balancer should work with two protocols", func(pairingIPFamily ipfamily.Family, poolAddresses []string) {
@@ -1791,6 +2244,37 @@ var _ = ginkgo.Describe("BGP", func() {
 
 		for _, c := range FRRContainers {
 			validateFRRPeeredWithAllNodes(cs, c, pairingIPFamily)
+		}
+	},
+		ginkgo.Entry("IPV4", ipfamily.IPv4),
+		ginkgo.Entry("IPV6", ipfamily.IPv6),
+	)
+	ginkgo.DescribeTable("FRR does not establish connections with wrong dynamic ASN mode", func(pairingIPFamily ipfamily.Family) {
+		resources := config.Resources{
+			Peers: metallb.PeersForContainers(FRRContainers, pairingIPFamily, func(p *metallbv1beta2.BGPPeer) {
+				// Use the opposite dynamicASN mode: External when peer is internal, Internal when peer is external
+				wrongDynamicASN := metallbv1beta2.ExternalASNMode
+				if p.Spec.ASN != p.Spec.MyASN {
+					wrongDynamicASN = metallbv1beta2.InternalASNMode
+				}
+				p.Spec.ASN = 0
+				p.Spec.DynamicASN = wrongDynamicASN
+			}),
+		}
+
+		for _, c := range FRRContainers {
+			err := frrcontainer.PairWithNodes(cs, c, pairingIPFamily)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		err := ConfigUpdater.Update(resources)
+		Expect(err).NotTo(HaveOccurred())
+
+		allNodes, err := cs.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, c := range FRRContainers {
+			validateFRRNotPeeredWithNodes(allNodes.Items, c, pairingIPFamily)
 		}
 	},
 		ginkgo.Entry("IPV4", ipfamily.IPv4),
