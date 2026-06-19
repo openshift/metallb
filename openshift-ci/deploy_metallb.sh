@@ -16,9 +16,6 @@ METALLB_OPERATOR_IMAGE_TAG=${METALLB_OPERATOR_IMAGE_TAG:-"metallb-operator"}
 export NAMESPACE=${NAMESPACE:-"metallb-system"}
 
 if [ ! -d ./metallb-operator ]; then
-  echo "====print env===="
-  printenv
-  echo "====print env===="
   git clone ${METALLB_OPERATOR_REPO}
   cd metallb-operator
   git checkout ${METALLB_OPERATOR_BRANCH}
