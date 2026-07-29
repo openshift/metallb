@@ -107,7 +107,7 @@ func TestE2E(t *testing.T) {
 	}
 	RegisterFailHandler(ginkgo.Fail)
 
-	ginkgo.RunSpecs(t, "E2E Suite")
+	ginkgo.RunSpecs(t, "E2E Suite ")
 }
 
 var _ = ginkgo.BeforeSuite(func() {
