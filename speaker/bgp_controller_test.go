@@ -1625,6 +1625,22 @@ func TestPasswordForSession(t *testing.T) {
 				Namespace: "my-namespace",
 			},
 		},
+		{
+			name: "FRR-K8s BGP with unresolved secret ref, passthrough",
+			cfg: &config.Peer{
+				PasswordRef: v1.SecretReference{
+					Name:      "my-secret",
+					Namespace: "my-namespace",
+				},
+			},
+			bgpType:        bgpFrrK8s,
+			secretHandling: SecretPassThrough,
+			expectedPass:   "",
+			expectedRef: v1.SecretReference{
+				Name:      "my-secret",
+				Namespace: "my-namespace",
+			},
+		},
 	}
 
 	for _, tt := range tests {
