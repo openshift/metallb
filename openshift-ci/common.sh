@@ -46,3 +46,7 @@ wait_for_csv() {
   timeout 5m bash -c "until oc get csv -n $namespace $csv; do sleep 5; done"
   oc wait --for jsonpath='{.status.phase}'=Succeeded csv/"$csv" -n "$namespace" --timeout=300s
 }
+
+nthhost() {
+  python3 -c "from ipaddress import ip_network; print(ip_network('$1', strict=False)[$2])"
+}

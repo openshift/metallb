@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 set -euo pipefail
 
+metallb_dir="$(dirname $(readlink -f $0))"
+source ${metallb_dir}/common.sh
+
 IP_STACK=$1
 
 # need to skip L2 metrics / node selector test because the pod that's running the tests is not
@@ -24,7 +27,7 @@ elif [ "${IP_STACK}" = "v6" ]; then
 elif [ "${IP_STACK}" = "v4v6" ]; then
 	SKIP="$SKIP|IPV6"
 	export PROVISIONING_HOST_EXTERNAL_IPV4=${PROVISIONING_HOST_EXTERNAL_IP}
-	export PROVISIONING_HOST_EXTERNAL_IPV6=1111:1:1::1
+	export PROVISIONING_HOST_EXTERNAL_IPV6=$(nthhost "$EXTERNAL_SUBNET_V6" 1)
 fi
 echo "Skipping ${SKIP}"
 
