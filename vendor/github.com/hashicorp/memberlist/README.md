@@ -1,5 +1,4 @@
-# memberlist [![GoDoc](https://godoc.org/github.com/hashicorp/memberlist?status.png)](https://godoc.org/github.com/hashicorp/memberlist) [![CircleCI](https://circleci.com/gh/hashicorp/memberlist.svg?style=svg)](https://circleci.com/gh/hashicorp/memberlist)
-
+# memberlist [![GoDoc](https://godoc.org/github.com/hashicorp/memberlist?status.png)](https://godoc.org/github.com/hashicorp/memberlist)
 memberlist is a [Go](http://www.golang.org) library that manages cluster
 membership and member failure detection using a gossip based protocol.
 
@@ -71,3 +70,28 @@ convergence rate.
 
 For details on all of these extensions, please read our paper "[Lifeguard : SWIM-ing with Situational Awareness](https://arxiv.org/abs/1707.00788)", along with the memberlist source.  We welcome any questions related
 to the protocol on our issue tracker.
+
+## Metrics Emission and Compatibility
+
+This library can emit metrics using either `github.com/armon/go-metrics` or `github.com/hashicorp/go-metrics`. Choosing between the libraries is controlled via build tags. 
+
+**Build Tags**
+* `armonmetrics` - Using this tag will cause metrics to be routed to `armon/go-metrics`
+* `hashicorpmetrics` - Using this tag will cause all metrics to be routed to `hashicorp/go-metrics`
+
+If no build tag is specified, the default behavior is to use `armon/go-metrics`. 
+
+**Deprecating `armon/go-metrics`**
+
+Emitting metrics to `armon/go-metrics` is officially deprecated. Usage of `armon/go-metrics` will remain the default until mid-2025 with opt-in support continuing to the end of 2025.
+
+**Migration**
+To migrate an application currently using the older `armon/go-metrics` to instead use `hashicorp/go-metrics` the following should be done.
+
+1. Upgrade libraries using `armon/go-metrics` to consume `hashicorp/go-metrics/compat` instead. This should involve only changing import statements. All repositories in the `hashicorp` namespace
+2. Update an applications library dependencies to those that have the compatibility layer configured.
+3. Update the application to use `hashicorp/go-metrics` for configuring metrics export instead of `armon/go-metrics`
+   * Replace all application imports of `github.com/armon/go-metrics` with `github.com/hashicorp/go-metrics`
+   * Instrument your build system to build with the `hashicorpmetrics` tag.
+
+Eventually once the default behavior changes to use `hashicorp/go-metrics` by default (mid-2025), you can drop the `hashicorpmetrics` build tag.
