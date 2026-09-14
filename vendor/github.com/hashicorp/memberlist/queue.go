@@ -1,4 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright IBM Corp. 2013, 2026
 // SPDX-License-Identifier: MPL-2.0
 
 package memberlist
@@ -64,20 +64,6 @@ func (b *limitedBroadcast) Less(than btree.Item) bool {
 	return b.id > o.id
 }
 
-// for testing; emits in transmit order if reverse=false
-func (q *TransmitLimitedQueue) orderedView(reverse bool) []*limitedBroadcast {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	out := make([]*limitedBroadcast, 0, q.lenLocked())
-	q.walkReadOnlyLocked(reverse, func(cur *limitedBroadcast) bool {
-		out = append(out, cur)
-		return true
-	})
-
-	return out
-}
-
 // walkReadOnlyLocked calls f for each item in the queue traversing it in
 // natural order (by Less) when reverse=false and the opposite when true. You
 // must hold the mutex.
@@ -134,13 +120,13 @@ type Broadcast interface {
 // You shoud ensure that Invalidates() checks the same uniqueness as the
 // example below:
 //
-// func (b *foo) Invalidates(other Broadcast) bool {
-// 	nb, ok := other.(NamedBroadcast)
-// 	if !ok {
-// 		return false
-// 	}
-// 	return b.Name() == nb.Name()
-// }
+//	func (b *foo) Invalidates(other Broadcast) bool {
+//		nb, ok := other.(NamedBroadcast)
+//		if !ok {
+//			return false
+//		}
+//		return b.Name() == nb.Name()
+//	}
 //
 // Invalidates() isn't currently used for NamedBroadcasts, but that may change
 // in the future.
