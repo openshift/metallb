@@ -124,7 +124,7 @@ var _ = ginkgo.Describe("BGP", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	ginkgo.DescribeTable("A service of protocol load balancer should work with ETP=cluster", func(pairingIPFamily ipfamily.Family, poolAddresses []string, tweak testservice.Tweak) {
+	ginkgo.DescribeTable("A service of protocol load balancer should work with ETP=cluster ", func(pairingIPFamily ipfamily.Family, poolAddresses []string, tweak testservice.Tweak) {
 
 		_, svc := setupBGPService(cs, testNamespace, pairingIPFamily, poolAddresses, FRRContainers, func(svc *corev1.Service) {
 			testservice.TrafficPolicyCluster(svc)
