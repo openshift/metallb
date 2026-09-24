@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 set -euo pipefail
 
+metallb_dir="$(dirname $(readlink -f $0))"
+source ${metallb_dir}/common.sh
+
 IP_STACK=$1
 
 # need to skip L2 metrics / node selector test because the pod that's running the tests is not
@@ -24,7 +27,7 @@ elif [ "${IP_STACK}" = "v6" ]; then
 elif [ "${IP_STACK}" = "v4v6" ]; then
 	SKIP="$SKIP|IPV6"
 	export PROVISIONING_HOST_EXTERNAL_IPV4=${PROVISIONING_HOST_EXTERNAL_IP}
-	export PROVISIONING_HOST_EXTERNAL_IPV6=1111:1:1::1
+	export PROVISIONING_HOST_EXTERNAL_IPV6=$(nthhost "$EXTERNAL_SUBNET_V6" 1)
 fi
 echo "Skipping ${SKIP}"
 
@@ -48,15 +51,21 @@ export PATH=${PATH}:${HOME}/.local/bin
 export CONTAINER_RUNTIME=podman
 export RUN_FRR_CONTAINER_ON_HOST_NETWORK=true
 
-mkdir -p /tmp/report
+FAILED=0
+
+IBGP_REPORTER_PATH="${REPORTER_PATH}ibgp/"
+EBGP_REPORTER_PATH="${REPORTER_PATH}ebgp/"
+mkdir -p "${IBGP_REPORTER_PATH}" "${EBGP_REPORTER_PATH}"
+
 inv e2etest --kubeconfig=$(readlink -f ../../ocp/ostest/auth/kubeconfig) \
 	--service-pod-port=8080 --system-namespaces="metallb-system" \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
 	--prometheus-namespace="openshift-monitoring" \
 	--local-nics="_" --node-nics="_" --skip="${SKIP}" --external-frr-image="quay.io/frrouting/frr:8.5.3" \
-	--bgp-mode="frr-k8s" --frr-k8s-namespace=openshift-frr-k8s
-
-cp -r /tmp/report $REPORTER_PATH
+	--bgp-mode="frr-k8s" --frr-k8s-namespace=openshift-frr-k8s \
+	--junit-report="${IBGP_REPORTER_PATH}junit-ibgp.xml" \
+	--export="${IBGP_REPORTER_PATH}" \
+	--ginkgo-params=" -v" || FAILED=1
 
 oc wait --for=delete namespace/metallb-system-other --timeout=2m || true # making sure the namespace is deleted (should happen in aftersuite)
 
@@ -67,4 +76,9 @@ inv e2etest --kubeconfig=$(readlink -f ../../ocp/ostest/auth/kubeconfig) \
 	--ipv4-service-range=192.168.10.0/24 --ipv6-service-range=fc00:f853:0ccd:e799::/124 \
 	--prometheus-namespace="openshift-monitoring" \
 	--local-nics="_" --node-nics="_" --focus="${FOCUS_EBGP}" --external-frr-image="quay.io/frrouting/frr:8.5.3" \
-	--host-bgp-mode="ebgp" --bgp-mode="frr-k8s" --frr-k8s-namespace=openshift-frr-k8s
+	--host-bgp-mode="ebgp" --bgp-mode="frr-k8s" --frr-k8s-namespace=openshift-frr-k8s \
+	--junit-report="${EBGP_REPORTER_PATH}junit-ebgp.xml" \
+	--export="${EBGP_REPORTER_PATH}" \
+	--ginkgo-params=" -v" || FAILED=1
+
+exit $FAILED

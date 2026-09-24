@@ -23,8 +23,8 @@ sudo firewall-cmd --zone=libvirt --add-port=3785/udp
 sudo firewall-cmd --zone=libvirt --permanent --add-port=4784/udp
 sudo firewall-cmd --zone=libvirt --add-port=4784/udp
 
-export REPORTER_PATH=/logs/artifacts/
-mkdir -p $REPORTER_PATH
+export REPORTER_PATH="${ARTIFACT_DIR:-/logs/artifacts}/"
+mkdir -p "${REPORTER_PATH}"
 
 go install github.com/onsi/ginkgo/v2/ginkgo@v2.20.2
 
