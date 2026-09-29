@@ -845,7 +845,7 @@ var _ = ginkgo.Describe("L2", func() {
 				}
 				advSpeaker = sp
 
-				speakerMetrics, err := metrics.ForPod(cs, promPod, advSpeaker, metallb.Namespace)
+				speakerMetrics, err := metrics.ForPod(promPod, advSpeaker, metallb.Namespace)
 				if err != nil {
 					return err
 				}
@@ -864,7 +864,7 @@ var _ = ginkgo.Describe("L2", func() {
 			// The speaker is deployed with --gratuitous-arp-interval=5, so we
 			// wait long enough for at least one extra periodic tick.
 			Eventually(func() error {
-				speakerMetrics, err := metrics.ForPod(cs, promPod, advSpeaker, metallb.Namespace)
+				speakerMetrics, err := metrics.ForPod(promPod, advSpeaker, metallb.Namespace)
 				if err != nil {
 					return err
 				}
