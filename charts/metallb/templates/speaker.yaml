@@ -277,6 +277,9 @@ spec:
         {{- if .Values.speaker.bgpDebounceTimeout }}
         - --bgp-debounce-timeout={{ .Values.speaker.bgpDebounceTimeout }}
         {{- end }}
+        {{- if .Values.speaker.gratuitousARPInterval }}
+        - --gratuitous-arp-interval={{ .Values.speaker.gratuitousARPInterval }}
+        {{- end }}
         {{- if .Values.prometheus.secureMetricsPort }}
         - --host=localhost
         {{- end }}
