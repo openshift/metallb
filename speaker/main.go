@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -24,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -61,6 +63,10 @@ var announcing = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 
 const (
 	excludeL2ConfigPath = "/etc/metallb/excludel2.yaml"
+	// Cap the gratuitous ARP interval well below the time.Duration overflow
+	// point (max ~9.2e9 seconds for an int64 ns duration) while still
+	// allowing any sensible value.
+	maxGratuitousARPInterval = math.MaxInt32
 )
 
 // Service offers methods to mutate a Kubernetes service object.
@@ -74,21 +80,23 @@ func main() {
 	prometheus.MustRegister(announcing)
 
 	var (
-		namespace         = flag.String("namespace", os.Getenv("METALLB_NAMESPACE"), "config file and speakers namespace")
-		host              = flag.String("host", os.Getenv("METALLB_HOST"), "HTTP host address")
-		mlBindAddr        = flag.String("ml-bindaddr", os.Getenv("METALLB_ML_BIND_ADDR"), "Bind addr for MemberList (fast dead node detection)")
-		mlBindPort        = flag.String("ml-bindport", os.Getenv("METALLB_ML_BIND_PORT"), "Bind port for MemberList (fast dead node detection)")
-		mlLabels          = flag.String("ml-labels", os.Getenv("METALLB_ML_LABELS"), "Labels to match the speakers (for MemberList / fast dead node detection)")
-		mlSecretKeyPath   = flag.String("ml-secret-key-path", os.Getenv("METALLB_ML_SECRET_KEY_PATH"), "Path to where the MemberList's secret key is mounted")
-		mlWANConfig       = flag.Bool("ml-wan-config", false, "WAN network type for MemberList default config, bool")
-		myNode            = flag.String("node-name", os.Getenv("METALLB_NODE_NAME"), "name of this Kubernetes node (spec.nodeName)")
-		myPod             = flag.String("pod-name", os.Getenv("METALLB_POD_NAME"), "name of this MetalLB speaker pod")
-		port              = flag.Int("port", 7472, "HTTP listening port")
-		logLevel          = flag.String("log-level", "info", fmt.Sprintf("log level. must be one of: [%s]", logging.Levels.String()))
-		enablePprof       = flag.Bool("enable-pprof", false, "Enable pprof profiling")
-		loadBalancerClass = flag.String("lb-class", "", "load balancer class. When enabled, metallb will handle only services whose spec.loadBalancerClass matches the given lb class")
-		ignoreLBExclude   = flag.Bool("ignore-exclude-lb", false, "ignore the exclude-from-external-load-balancers label")
-		frrK8sNamespace   = flag.String("frrk8s-namespace", os.Getenv("FRRK8S_NAMESPACE"), "the namespace frr-k8s is being deployed on")
+		namespace             = flag.String("namespace", os.Getenv("METALLB_NAMESPACE"), "config file and speakers namespace")
+		host                  = flag.String("host", os.Getenv("METALLB_HOST"), "HTTP host address")
+		mlBindAddr            = flag.String("ml-bindaddr", os.Getenv("METALLB_ML_BIND_ADDR"), "Bind addr for MemberList (fast dead node detection)")
+		mlBindPort            = flag.String("ml-bindport", os.Getenv("METALLB_ML_BIND_PORT"), "Bind port for MemberList (fast dead node detection)")
+		mlLabels              = flag.String("ml-labels", os.Getenv("METALLB_ML_LABELS"), "Labels to match the speakers (for MemberList / fast dead node detection)")
+		mlSecretKeyPath       = flag.String("ml-secret-key-path", os.Getenv("METALLB_ML_SECRET_KEY_PATH"), "Path to where the MemberList's secret key is mounted")
+		mlWANConfig           = flag.Bool("ml-wan-config", false, "WAN network type for MemberList default config, bool")
+		myNode                = flag.String("node-name", os.Getenv("METALLB_NODE_NAME"), "name of this Kubernetes node (spec.nodeName)")
+		myPod                 = flag.String("pod-name", os.Getenv("METALLB_POD_NAME"), "name of this MetalLB speaker pod")
+		port                  = flag.Int("port", 7472, "HTTP listening port")
+		logLevel              = flag.String("log-level", "info", fmt.Sprintf("log level. must be one of: [%s]", logging.Levels.String()))
+		enablePprof           = flag.Bool("enable-pprof", false, "Enable pprof profiling")
+		loadBalancerClass     = flag.String("lb-class", "", "load balancer class. When enabled, metallb will handle only services whose spec.loadBalancerClass matches the given lb class")
+		ignoreLBExclude       = flag.Bool("ignore-exclude-lb", false, "ignore the exclude-from-external-load-balancers label")
+		frrK8sNamespace       = flag.String("frrk8s-namespace", os.Getenv("FRRK8S_NAMESPACE"), "the namespace frr-k8s is being deployed on")
+		gratuitousARPInterval = flag.Int("gratuitous-arp-interval", 0, "Interval in seconds for periodic gratuitous ARP/NDP announcements. "+
+			"0 disables periodic announcements.")
 	)
 	flag.Parse()
 
@@ -106,6 +114,12 @@ func main() {
 	}
 
 	level.Info(logger).Log("version", version.Version(), "commit", version.CommitHash(), "branch", version.Branch(), "goversion", version.GoString(), "msg", "MetalLB speaker starting "+version.String())
+
+	if *gratuitousARPInterval < 0 || *gratuitousARPInterval > maxGratuitousARPInterval {
+		level.Error(logger).Log("msg", "invalid --gratuitous-arp-interval value, must be a non-negative integer number of seconds within bound", "provided", *gratuitousARPInterval, "max", maxGratuitousARPInterval)
+		os.Exit(1)
+	}
+	garpInterval := time.Duration(*gratuitousARPInterval) * time.Second
 
 	if *namespace == "" {
 		bs, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
@@ -173,6 +187,7 @@ func main() {
 		bgpType:                bgpImplementation(bgpType),
 		InterfaceExcludeRegexp: interfacesToExclude,
 		IgnoreExcludeLB:        *ignoreLBExclude,
+		GratuitousARPInterval:  garpInterval,
 		Layer2StatusChange: func(namespacedName types.NamespacedName) {
 			l2StatusChan <- controllers.NewL2StatusEvent(namespacedName.Namespace, namespacedName.Name)
 		},
@@ -279,6 +294,7 @@ type controllerConfig struct {
 	AnnouncedInterfacesToExclude []string `yaml:"announcedInterfacesToExclude"`
 	InterfaceExcludeRegexp       *regexp.Regexp
 	IgnoreExcludeLB              bool
+	GratuitousARPInterval        time.Duration
 	Layer2StatusChange           func(types.NamespacedName)
 	BGPAdsChangedCallback        func(string)
 }
@@ -311,7 +327,7 @@ func newController(cfg controllerConfig) (*controller, error) {
 
 	layer2StatusFetcher := func(types.NamespacedName) []layer2.IPAdvertisement { return nil }
 	if !cfg.DisableLayer2 {
-		a, err := layer2.New(cfg.Logger, cfg.InterfaceExcludeRegexp)
+		a, err := layer2.New(cfg.Logger, cfg.InterfaceExcludeRegexp, cfg.GratuitousARPInterval)
 		layer2StatusFetcher = a.GetStatus
 		if err != nil {
 			return nil, fmt.Errorf("making layer2 announcer: %s", err)
