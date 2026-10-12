@@ -609,7 +609,7 @@ apiServer:
         run(
             "helm install metallb charts/metallb/ --set controller.image.tag=dev-{} "
             "--set speaker.image.tag=dev-{} --set speaker.logLevel=debug "
-            "--set controller.logLevel=debug {} {}  --namespace metallb-system".format(
+            "--set controller.logLevel=debug --set speaker.gratuitousARPInterval=5 {} {}  --namespace metallb-system".format(
                 architecture, architecture, prometheus_values, frr_values
             ),
             echo=True,
