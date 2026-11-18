@@ -97,6 +97,7 @@ func main() {
 		frrK8sNamespace       = flag.String("frrk8s-namespace", os.Getenv("FRRK8S_NAMESPACE"), "the namespace frr-k8s is being deployed on")
 		gratuitousARPInterval = flag.Int("gratuitous-arp-interval", 0, "Interval in seconds for periodic gratuitous ARP/NDP announcements. "+
 			"0 disables periodic announcements.")
+		frrK8sSecretPassthrough = flag.Bool("frrk8s-secret-passthrough", false, "pass BGP secret references to frr-k8s without resolving them, the secret must exist in the frr-k8s namespace")
 	)
 	flag.Parse()
 
@@ -169,6 +170,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *frrK8sSecretPassthrough {
+		if bgpType != string(bgpFrrK8s) {
+			level.Error(logger).Log("op", "startup", "error", "--frrk8s-secret-passthrough requires METALLB_BGP_TYPE=frr-k8s")
+			os.Exit(1)
+		}
+		if *frrK8sNamespace == "" {
+			level.Error(logger).Log("op", "startup", "error", "--frrk8s-secret-passthrough requires --frrk8s-namespace to be set")
+			os.Exit(1)
+		}
+	}
+
 	if *frrK8sNamespace == "" { // if not set, assuming it runs under metallb
 		frrK8sNamespace = namespace
 	}
@@ -178,16 +190,17 @@ func main() {
 
 	// Setup all clients and speakers, config decides what is being done runtime.
 	ctrl, err := newController(controllerConfig{
-		MyNode:                 *myNode,
-		Namespace:              *namespace,
-		FRRK8sNamespace:        *frrK8sNamespace,
-		Logger:                 logger,
-		LogLevel:               logging.Level(*logLevel),
-		SList:                  sList,
-		bgpType:                bgpImplementation(bgpType),
-		InterfaceExcludeRegexp: interfacesToExclude,
-		IgnoreExcludeLB:        *ignoreLBExclude,
-		GratuitousARPInterval:  garpInterval,
+		MyNode:                  *myNode,
+		Namespace:               *namespace,
+		FRRK8sNamespace:         *frrK8sNamespace,
+		FRRK8sSecretPassthrough: *frrK8sSecretPassthrough,
+		Logger:                  logger,
+		LogLevel:                logging.Level(*logLevel),
+		SList:                   sList,
+		bgpType:                 bgpImplementation(bgpType),
+		InterfaceExcludeRegexp:  interfacesToExclude,
+		IgnoreExcludeLB:         *ignoreLBExclude,
+		GratuitousARPInterval:   garpInterval,
 		Layer2StatusChange: func(namespacedName types.NamespacedName) {
 			l2StatusChan <- controllers.NewL2StatusEvent(namespacedName.Namespace, namespacedName.Name)
 		},
@@ -234,10 +247,11 @@ func main() {
 			ConfigChanged:  ctrl.SetConfig,
 			NodeChanged:    ctrl.SetNode,
 		},
-		ValidateConfig:    validateConfig,
-		LoadBalancerClass: *loadBalancerClass,
-		WithFRRK8s:        listenFRRK8s,
-		FRRK8sNamespace:   *frrK8sNamespace,
+		ValidateConfig:          validateConfig,
+		LoadBalancerClass:       *loadBalancerClass,
+		WithFRRK8s:              listenFRRK8s,
+		FRRK8sNamespace:         *frrK8sNamespace,
+		FRRK8sSecretPassthrough: *frrK8sSecretPassthrough,
 
 		Layer2StatusChan:    l2StatusChan,
 		Layer2StatusFetcher: ctrl.layer2StatusFetchFunc,
@@ -279,12 +293,13 @@ type controller struct {
 }
 
 type controllerConfig struct {
-	MyNode          string
-	Namespace       string
-	FRRK8sNamespace string
-	Logger          log.Logger
-	LogLevel        logging.Level
-	SList           SpeakerList
+	MyNode                  string
+	Namespace               string
+	FRRK8sNamespace         string
+	FRRK8sSecretPassthrough bool
+	Logger                  log.Logger
+	LogLevel                logging.Level
+	SList                   SpeakerList
 
 	bgpType bgpImplementation
 
@@ -304,7 +319,7 @@ func newController(cfg controllerConfig) (*controller, error) {
 	secretHandling := SecretPassThrough
 	// FrrK8s mode and frr-k8s deployed in a separate namespace, we don't have
 	// permissions to write secrets there.
-	if cfg.Namespace != cfg.FRRK8sNamespace && cfg.bgpType == bgpFrrK8s {
+	if cfg.Namespace != cfg.FRRK8sNamespace && cfg.bgpType == bgpFrrK8s && !cfg.FRRK8sSecretPassthrough {
 		secretHandling = SecretConvert
 	}
 

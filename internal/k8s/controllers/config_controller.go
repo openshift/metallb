@@ -40,14 +40,15 @@ const bgpExtrasConfigName = "bgpextras"
 
 type ConfigReconciler struct {
 	client.Client
-	Logger         log.Logger
-	Scheme         *runtime.Scheme
-	Namespace      string
-	Handler        func(log.Logger, *config.Config) SyncState
-	ValidateConfig config.Validate
-	ForceReload    func()
-	BGPType        string
-	currentConfig  *config.Config
+	Logger                  log.Logger
+	Scheme                  *runtime.Scheme
+	Namespace               string
+	Handler                 func(log.Logger, *config.Config) SyncState
+	ValidateConfig          config.Validate
+	ForceReload             func()
+	BGPType                 string
+	currentConfig           *config.Config
+	FRRK8sSecretPassthrough bool
 }
 
 func (r *ConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -134,7 +135,9 @@ var requestHandler = func(r *ConfigReconciler, ctx context.Context, req ctrl.Req
 
 	level.Debug(r.Logger).Log("controller", "ConfigReconciler", "metallb CRs and Secrets", dumpClusterResources(&resources))
 
-	cfg, err := toConfig(resources, r.ValidateConfig)
+	cfg, err := toConfig(resources, r.ValidateConfig, config.ForOptions{
+		FRRK8sSecretPassthrough: r.FRRK8sSecretPassthrough,
+	})
 	if err != nil {
 		configStale.Set(1)
 		level.Error(r.Logger).Log("controller", "ConfigReconciler", "error", "failed to parse the configuration", "error", err)
