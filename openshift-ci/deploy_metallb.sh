@@ -131,7 +131,7 @@ sleep_time=10
 max_iterations=72 # results in 12 minutes timeout
 until [[ $success -eq 1 ]] || [[ $iterations -eq $max_iterations ]]
 do
-  run_status=$(oc -n openshift-marketplace get pod | grep metallbindex | awk '{print $3}')
+  run_status=$(oc -n openshift-marketplace get pod --no-headers | awk '$1 ~ /^metallbindex-/ {print $3}')
    if [ "$run_status" == "Running" ]; then
           success=1
           break
